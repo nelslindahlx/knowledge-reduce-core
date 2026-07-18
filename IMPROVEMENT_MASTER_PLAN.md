@@ -52,6 +52,7 @@ graph TD
     M5 --> M6[Phase 6: Watcher Daemon]
     M6 --> M7[Phase 7: Store Audit + Critique Fallback]
     M7 --> M8[Phase 8: Hermes Hardening]
+    M8 --> M9[Phase 9: Test Resilience & CI Hygiene]
 ```
 
 ### 🎯 Phase 1: Local Apple Silicon Fine-Tuning (MLX-Based SFT)
@@ -125,3 +126,12 @@ graph TD
   6. Verify `python -m pytest -q` passes outside optional dependency clusters for core functionality.
   7. Add remote read-back instructions so maintainers can verify canonical skill reach GitHub after push.
 * **Success Metric**: A fresh machine can install `.`, install Hermes skill, run smoke tests, and push without missing metadata.
+
+### 🎯 Phase 9: Test Resilience & CI Hygiene
+* **Goal**: Make `python -m pytest -q` reliable on a minimal install instead of failing during collection when optional extras are missing.
+* **Tasks**:
+  1. Add `tests/conftest.py` pytest guards/skip markers keyed to extras like `viz`, `graph`, `nlp`, and external API clients.
+  2. Update optional-dependency test files to skip cleanly when their extras are absent.
+  3. Verify the stage runners report skipped tests explicitly and do not abort core test execution.
+  4. Add a CI/automation-friendly verification command that runs core smoke tests without optional deps.
+* **Success Metric**: `pip install -e .` followed by `python -m pytest -q` completes without missing-import collection failures.
