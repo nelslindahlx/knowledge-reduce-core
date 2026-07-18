@@ -26,7 +26,7 @@ def _utc_now() -> str:
 def _backend_name(backend: Any) -> str:
     """Infer a short backend label from the backend class name."""
     cls = type(backend).__name__.lower()
-    for tag in ("ollama", "fake", "hf", "vllm", "openai", "api"):
+    for tag in ("ollama", "fake", "hf", "vllm", "openai", "api", "llama"):
         if tag in cls:
             return tag
     return cls.replace("backend", "") or "unknown"
@@ -113,3 +113,96 @@ class ModelProbe:
                 "timestamp": _utc_now(),
             })
         return outputs
+
+
+class LlamaCppBackend:
+    """Local GGUF model execution via llama-cpp-python."""
+
+    def __init__(self, model_path: str, n_ctx: int = 2048, **kwargs):
+        try:
+            from llama_cpp import Llama
+        except ImportError as exc:
+            raise ImportError(
+                "LlamaCppBackend requires the llama-cpp extra: "
+                "pip install knowledgereduce[llama-cpp]"
+            ) from exc
+        import os
+        self.model = os.path.basename(model_path)
+        self.model_path = model_path
+        self.client = Llama(model_path=model_path, n_ctx=n_ctx, verbose=False, **kwargs)
+
+    def generate_structured(self, prompt: str, schema: dict, **gen_kwargs) -> dict:
+        """Generate one structured response, enforcing JSON schema via llama-cpp."""
+        import json
+        try:
+            response = self.client.create_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                response_format={
+                    "type": "json_object",
+                    "schema": schema
+                },
+                temperature=gen_kwargs.get("temperature", 0.3),
+                top_p=gen_kwargs.get("top_p", 0.9),
+                max_tokens=gen_kwargs.get("max_tokens", 512),
+            )
+            text = response["choices"][0]["message"]["content"]
+            return json.loads(text)
+        except Exception:
+            return {"facts": []}
+
+
+class OpenAICompatibleBackend:
+    """Remote API probing (OpenAI, Anthropic, Cohere, local vLLM)."""
+
+    def __init__(self, model: str, api_key: Optional[str] = None,
+                 base_url: Optional[str] = None):
+        try:
+            import openai
+        except ImportError as exc:
+            raise ImportError(
+                "OpenAICompatibleBackend requires the openai extra: "
+                "pip install knowledgereduce[openai]"
+            ) from exc
+        import os
+        self.client = openai.OpenAI(
+            api_key=api_key or os.environ.get("OPENAI_API_KEY", "mock-key"),
+            base_url=base_url or os.environ.get("OPENAI_BASE_URL")
+        )
+        self.model = model
+
+    def generate_structured(self, prompt: str, schema: dict, **gen_kwargs) -> dict:
+        """Generate one structured response, enforcing JSON schema via OpenAI SDK."""
+        import json
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format={
+                    "type": "json_object",
+                    "schema": schema
+                },
+                temperature=gen_kwargs.get("temperature", 0.3),
+                top_p=gen_kwargs.get("top_p", 0.9),
+                max_tokens=gen_kwargs.get("max_tokens", 512),
+            )
+            text = response.choices[0].message.content
+            return json.loads(text)
+        except Exception:
+            return {"facts": []}
+
+
+def get_backend(backend_type: str, model: str, **kwargs) -> Any:
+    """Factory function to instantiate the correct model probing backend."""
+    backend_type = backend_type.lower()
+    if backend_type == "ollama":
+        return OllamaBackend(model=model, host=kwargs.get("host", "http://localhost:11434"))
+    elif backend_type == "llama-cpp":
+        return LlamaCppBackend(model_path=kwargs.get("model_path") or model)
+    elif backend_type == "openai":
+        return OpenAICompatibleBackend(
+            model=model,
+            api_key=kwargs.get("api_key"),
+            base_url=kwargs.get("base_url")
+        )
+    else:
+        raise ValueError(f"Unknown backend type: {backend_type}")

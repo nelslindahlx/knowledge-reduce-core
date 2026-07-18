@@ -16,7 +16,7 @@ is available, so this module is never required for the package to work.
 """
 
 import math
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -48,7 +48,7 @@ class EmbeddingCache:
         return self._cache[text]
 
 
-class LocalEmbedder:
+class OllamaEmbedder:
     """Semantic embeddings from a local Ollama embedding model."""
 
     def __init__(self, model: str = "mxbai-embed-large",
@@ -57,7 +57,7 @@ class LocalEmbedder:
             import ollama
         except ImportError as exc:  # pragma: no cover - needs the extra
             raise ImportError(
-                "LocalEmbedder requires the model-reduce extra: "
+                "OllamaEmbedder requires the model-reduce extra: "
                 "pip install knowledgereduce[model-reduce]"
             ) from exc
         self._ollama = ollama
@@ -83,3 +83,56 @@ class LocalEmbedder:
     def similarity(self, a: str, b: str) -> float:
         """Cosine similarity between the embeddings of two texts."""
         return cosine_similarity(self.embed_one(a), self.embed_one(b))
+
+
+class SentenceTransformersEmbedder:
+    """Offline semantic embeddings from a local sentence-transformers model."""
+
+    def __init__(self, model: str = "all-MiniLM-L6-v2"):
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as exc:
+            raise ImportError(
+                "SentenceTransformersEmbedder requires the sentence-transformers extra: "
+                "pip install knowledgereduce[sentence-transformers]"
+            ) from exc
+        self.model = model
+        self.client = SentenceTransformer(model)
+        self._cache = EmbeddingCache(self._embed_one_uncached)
+
+    def _embed_one_uncached(self, text: str) -> List[float]:
+        import numpy as np
+        vector = self.client.encode(text, convert_to_numpy=True)
+        return [float(x) for x in vector]
+
+    def embed_one(self, text: str) -> List[float]:
+        """Return the (cached) embedding vector for ``text``."""
+        return self._cache.get(text)
+
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        """Embed a list of texts (cached per text)."""
+        return [self.embed_one(t) for t in texts]
+
+    def similarity(self, a: str, b: str) -> float:
+        """Cosine similarity between the embeddings of two texts."""
+        return cosine_similarity(self.embed_one(a), self.embed_one(b))
+
+
+# Backward-compatible alias
+LocalEmbedder = OllamaEmbedder
+
+
+def get_embedder(embedder_type: str, model: Optional[str] = None, **kwargs) -> Any:
+    """Factory function to instantiate the correct embeddings backend."""
+    embedder_type = embedder_type.lower()
+    if embedder_type == "ollama":
+        return OllamaEmbedder(
+            model=model or "mxbai-embed-large",
+            host=kwargs.get("host", "http://localhost:11434")
+        )
+    elif embedder_type == "sentence-transformers":
+        return SentenceTransformersEmbedder(
+            model=model or "all-MiniLM-L6-v2"
+        )
+    else:
+        raise ValueError(f"Unknown embedder type: {embedder_type}")

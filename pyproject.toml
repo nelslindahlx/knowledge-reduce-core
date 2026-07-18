@@ -48,6 +48,10 @@ model-reduce = ["ollama>=0.3.0", "pydantic>=2.0"]
 graph = ["kuzu>=0.6.0"]
 # Local Apple Silicon SFT (MLX-based).
 mlx = ["mlx-lm>=0.20.0"]
+# Pluggable backends and offline embeddings extras.
+llama-cpp = ["llama-cpp-python>=0.2.0"]
+openai = ["openai>=1.0.0"]
+sentence-transformers = ["sentence-transformers>=2.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/nelslindahlx/Hermes-Output"

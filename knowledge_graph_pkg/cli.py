@@ -138,8 +138,11 @@ def _build_parser() -> argparse.ArgumentParser:
     mp.add_argument("--store", default="store", help="Knowledge store directory.")
     mp.add_argument("--n-prompts", type=int, default=10,
                     help="Prompts per (model, domain) (default 10).")
-    mp.add_argument("--backend", choices=["ollama"], default="ollama",
-                    help="Probe backend (default ollama).")
+    mp.add_argument("--backend", choices=["ollama", "llama-cpp", "openai"], default="ollama",
+                    help="Probe backend (default: ollama).")
+    mp.add_argument("--model-path", help="Path to local GGUF model file (llama-cpp backend).")
+    mp.add_argument("--api-key", help="API key (openai backend).")
+    mp.add_argument("--base-url", help="Base URL for remote endpoint or vLLM (openai backend).")
     mp.add_argument("--host", default="http://localhost:11434",
                     help="Ollama host (default http://localhost:11434).")
     mp.add_argument("--seed", type=int, default=42, help="Probe seed (default 42).")
@@ -198,8 +201,12 @@ def _build_parser() -> argparse.ArgumentParser:
     me.add_argument("--similarity", type=float, default=0.8,
                     help="Clustering Jaccard threshold for corroboration (default 0.8).")
     me.add_argument("--embed", action="store_true",
-                    help="Use Ollama embeddings for gold matching (else lenient strings).")
+                    help="Use embeddings for gold matching (else lenient strings).")
     me.add_argument("--host", default="http://localhost:11434", help="Ollama host.")
+    me.add_argument("--embedder", choices=["ollama", "sentence-transformers"], default="ollama",
+                    help="Embedder backend (default: ollama).")
+    me.add_argument("--embedder-model", default=None,
+                    help="Custom embedder model name.")
     me.add_argument("--output", default=None, help="Optional path to write the report JSON.")
     me.add_argument("--ci", action="store_true",
                     help="Exit non-zero if quality gates fail.")
@@ -215,6 +222,10 @@ def _build_parser() -> argparse.ArgumentParser:
     gi.add_argument("--embed", action="store_true",
                     help="Use embeddings for cross-model clustering.")
     gi.add_argument("--host", default="http://localhost:11434", help="Ollama host.")
+    gi.add_argument("--embedder", choices=["ollama", "sentence-transformers"], default="ollama",
+                    help="Embedder backend (default: ollama).")
+    gi.add_argument("--embedder-model", default=None,
+                    help="Custom embedder model name.")
 
     sm = sub.add_parser("serve-mcp",
                         help="Serve the graph as LLM-callable tools over HTTP+JSON.")
@@ -572,7 +583,7 @@ def _cmd_model_probe(args) -> int:
     """Probe local models across domains; store each (model, domain) as a ModelDrop."""
     from .store import KnowledgeStore
     from .model_drop import ModelDrop
-    from .model_probe import ModelProbe, OllamaBackend
+    from .model_probe import ModelProbe, get_backend
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
     domains = [d.strip() for d in args.domains.split(",") if d.strip()]
@@ -584,7 +595,14 @@ def _cmd_model_probe(args) -> int:
     store = KnowledgeStore(args.store)
     total_drops = total_facts = skipped = 0
     for model in models:
-        backend = OllamaBackend(model=model, host=args.host)
+        backend = get_backend(
+            args.backend,
+            model=model,
+            host=args.host,
+            model_path=args.model_path,
+            api_key=args.api_key,
+            base_url=args.base_url
+        )
         probe = ModelProbe(backend=backend, model=model)
         for domain in domains:
             outputs = probe.probe_domain(domain, n_prompts=args.n_prompts, seed=args.seed)
@@ -730,8 +748,8 @@ def _cmd_model_eval(args) -> int:
     embedder = None
     if args.embed:
         try:
-            from .embeddings import LocalEmbedder
-            embedder = LocalEmbedder(host=args.host)
+            from .embeddings import get_embedder
+            embedder = get_embedder(args.embedder, model=args.embedder_model, host=args.host)
         except Exception as exc:  # noqa: BLE001
             print(f"warning: embeddings unavailable ({exc}); using string matching.",
                   file=sys.stderr)
@@ -780,8 +798,8 @@ def _cmd_graph_ingest(args) -> int:
     embedder = None
     if args.embed:
         try:
-            from .embeddings import LocalEmbedder
-            embedder = LocalEmbedder(host=args.host)
+            from .embeddings import get_embedder
+            embedder = get_embedder(args.embedder, model=args.embedder_model, host=args.host)
         except Exception as exc:  # noqa: BLE001
             print(f"warning: embeddings unavailable ({exc}); using Jaccard.",
                   file=sys.stderr)

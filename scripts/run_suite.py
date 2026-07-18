@@ -29,7 +29,7 @@ def classify_stages(all_files):
     
     stage2_files = {
         "test_ingest.py", "test_extraction.py", "test_extractor_base.py",
-        "test_coref.py", "test_semantic.py"
+        "test_coref.py", "test_semantic.py", "test_backends.py"
     }
     
     stage3_files = {
