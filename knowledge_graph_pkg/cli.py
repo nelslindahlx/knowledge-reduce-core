@@ -244,6 +244,7 @@ def _build_parser() -> argparse.ArgumentParser:
     wd.add_argument("--min-reliability", choices=["verified", "likely_true", "possibly_true", "unverified"],
                     default="likely_true", help="Min reliability threshold (default: likely_true).")
     wd.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
+    wd.add_argument("--graph-db", default=None, help="Optional path to a Kùzu graph database to update in real-time.")
 
     co = sub.add_parser("consensus",
                         help="Ingest a document using multiple engines, load into graph, and reconcile contradictions.")
@@ -1063,7 +1064,8 @@ def _cmd_watch_daemon(args) -> int:
         reliability=args.min_reliability,
         filter_name=args.filter,
         coref=args.coref,
-        engine=args.engine
+        engine=args.engine,
+        graph_db=args.graph_db
     )
     try:
         watcher.run()

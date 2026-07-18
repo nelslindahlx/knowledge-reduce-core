@@ -173,3 +173,64 @@ class TestWatcherDaemon(unittest.TestCase):
             os.rmdir("test_watch")
         if os.path.exists("test_store"):
             os.rmdir("test_store")
+
+    @patch("knowledge_graph_pkg.watcher.batch_drop")
+    def test_watcher_daemon_graph_pipeline(self, mock_batch_drop):
+        import shutil
+        watch_dir = "test_watch_g"
+        store_dir = "test_store_g"
+        db_log = "test_watcher_g.db"
+        graph_db = "test_graph_db_g"
+        
+        daemon = WatcherDaemon(
+            watch_dir=watch_dir, 
+            store_dir=store_dir, 
+            db_log_path=db_log, 
+            graph_db=graph_db
+        )
+        
+        mock_batch_drop.return_value = {
+            "dropped": 1,
+            "errors": 0,
+            "items": [{
+                "status": "success",
+                "facts": [{
+                    "subject": "Mitochondria",
+                    "predicate": "produce",
+                    "object": "ATP",
+                    "statement": "Mitochondria produce ATP.",
+                    "domain": "biochemistry",
+                    "reliability": "VERIFIED",
+                    "agreement": 3,
+                    "quality": 1
+                }]
+            }]
+        }
+        
+        os.makedirs(watch_dir, exist_ok=True)
+        test_file = os.path.join(watch_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("Some text content")
+            
+        daemon.process_file(test_file)
+        
+        from knowledge_graph_pkg.graph_store_factory import get_graph_store
+        kstore = get_graph_store(graph_db)
+        try:
+            self.assertEqual(kstore.count(), 1)
+            facts = kstore.query("MATCH (f:Fact) RETURN f.statement AS statement")
+            self.assertEqual(facts[0]["statement"], "Mitochondria produce ATP.")
+        finally:
+            kstore.close()
+            
+        # Clean up
+        os.remove(test_file)
+        os.remove(db_log)
+        os.rmdir(watch_dir)
+        os.rmdir(store_dir)
+        if os.path.exists(daemon.graph_db):
+            if os.path.isdir(daemon.graph_db):
+                shutil.rmtree(daemon.graph_db)
+            else:
+                os.remove(daemon.graph_db)
+

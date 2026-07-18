@@ -11,7 +11,7 @@ class WatcherDaemon:
 
     def __init__(self, watch_dir: str, store_dir: str, db_log_path: str = "watcher_state.db",
                  reliability: str = "likely_true", filter_name: str = "standard",
-                 coref: bool = False, engine: str = "svo"):
+                 coref: bool = False, engine: str = "svo", graph_db: Optional[str] = None):
         try:
             from watchdog.observers import Observer
             from watchdog.events import FileSystemEventHandler
@@ -27,6 +27,7 @@ class WatcherDaemon:
         self.filter_name = filter_name
         self.coref = coref
         self.engine = engine
+        self.graph_db = os.path.abspath(graph_db) if graph_db else None
 
         # Ensure directories exist
         os.makedirs(self.watch_dir, exist_ok=True)
@@ -121,6 +122,46 @@ class WatcherDaemon:
                         item_status = "SKIPPED"
                 print(f"[Watcher] Success: {file_path} (Status: {item_status})")
                 self.log_file_state(file_path, mtime, item_status)
+                
+                if self.graph_db:
+                    try:
+                        from .graph_store_factory import get_graph_store
+                        from .entity_resolution import resolve_and_merge_entities
+                        
+                        print(f"[Watcher] Ingesting new facts into graph database at: {self.graph_db}")
+                        kstore = get_graph_store(self.graph_db)
+                        try:
+                            new_items = []
+                            for item in report.get("items", []):
+                                if item.get("status") == "success":
+                                    new_items.extend(item.get("facts", []))
+                                    
+                            if new_items:
+                                formatted_items = []
+                                for ni in new_items:
+                                    formatted_items.append({
+                                        "subject": ni.get("subject"),
+                                        "predicate": ni.get("predicate"),
+                                        "object": ni.get("object"),
+                                        "fact_statement": ni.get("statement") or ni.get("fact_statement"),
+                                        "domain": ni.get("domain") or ni.get("category"),
+                                        "reliability_rating": ni.get("reliability") or ni.get("reliability_rating") or "POSSIBLY_TRUE",
+                                        "cross_model_agreement": ni.get("agreement") or ni.get("cross_model_agreement") or 1,
+                                        "quality_score": ni.get("quality") or ni.get("quality_score") or 1,
+                                        "source_models": ni.get("source_models") or []
+                                    })
+                                kstore.ingest_facts(formatted_items)
+                                kstore.auto_link_relations()
+                                
+                                print("[Watcher] Running graph entity resolution...")
+                                resolve_and_merge_entities(kstore)
+                                
+                                print("[Watcher] Running path validation and contradiction reconciliation...")
+                                kstore.validate_and_reconcile()
+                        finally:
+                            kstore.close()
+                    except Exception as g_exc:
+                        print(f"[Watcher] Error updating graph database: {g_exc}")
         except Exception as exc:
             print(f"[Watcher] Exception processing: {file_path} - {exc}")
             self.log_file_state(file_path, mtime, "FAILED", error=str(exc))
