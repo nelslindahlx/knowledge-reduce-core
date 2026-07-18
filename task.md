@@ -1,0 +1,21 @@
+# Checklist: Phase II System Hardening & Performance Optimizations
+
+- `[x]` Track 1: SQLite WAL Mode & Concurrency Resilience
+  - `[x]` Update [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py) with WAL journal mode and busy timeout configurations
+- `[x]` Track 2: JWT Signature & Expiration Hardening
+  - `[x]` Update [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py) to parse and validate real signatures and expiry claims
+- `[x]` Track 3: Incremental Entity Resolution & Blocking
+  - `[x]` Implement prefix blocking in [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py)
+  - `[x]` Update [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py) to run resolution incrementally
+- `[x]` Track 4: Configurable Ontology Heuristics
+  - `[x]` Add customizable rule dicts and schema mapping logic in [ontology.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/ontology.py)
+- `[x]` Track 5: Conflict-Aware Graph-RAG walking
+  - `[x]` Update walk path extraction in [rag.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/rag.py) to prune paths traversing contradicted nodes
+- `[x]` Track 6: Exposing Distill Ontology via MCP Server
+  - `[x]` Register the `graph_distill_ontology` schema to `TOOL_SCHEMAS` in [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py)
+- `[x]` Track 7: Cross-Platform SFT CLI Command (`train-sft`)
+  - `[x]` Add `train-sft` parsing, dispatching, and routing logic in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py)
+- `[x]` Track 8: Quick Integration System Smoke Test (`test-drive`)
+  - `[x]` Expose `test-drive` subcommand mapping in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py)
+- `[x]` Track 9: Verification
+  - `[x]` Run full test suite and confirm 100% success rate (333/333 tests green)
