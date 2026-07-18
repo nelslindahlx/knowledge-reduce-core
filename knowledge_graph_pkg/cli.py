@@ -355,6 +355,9 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Perform diagnostic quality audits on the knowledge store.")
     au.add_argument("--store", default="store", help="Path to knowledge store (default: store).")
 
+    td = sub.add_parser("test-drive",
+                        help="Run a quick end-to-end smoke test verifying extraction, consensus, graph ingestion, and Graph-RAG.")
+
     qg = sub.add_parser("query-graph",
                         help="Run interactive or one-shot Graph-RAG queries over the graph store.")
     qg.add_argument("query", help="The natural-language question or key terms to retrieve paths for.")
@@ -1045,6 +1048,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_query_graph(args)
     if args.command == "train-sft":
         return _cmd_train_sft(args)
+    if args.command == "test-drive":
+        return _cmd_test_drive(args)
     parser.print_help()
     return 1
 
@@ -1538,6 +1543,18 @@ def _cmd_train_sft(args) -> int:
     if args.dry_run:
         argv.append("--dry-run")
     return train_sft.main(argv)
+
+
+def _cmd_test_drive(args) -> int:
+    """Run a quick end-to-end smoke test of the entire system."""
+    from scripts import test_drive
+    try:
+        test_drive.main()
+        return 0
+    except Exception as exc:
+        import sys
+        print(f"Error running test drive: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

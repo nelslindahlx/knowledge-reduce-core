@@ -317,3 +317,12 @@ def test_query_graph_cli(tmp_path, monkeypatch):
     
     rc = main(["query-graph", "Mitochondria", "--graph-db", str(tmp_path / "dummy_db")])
     assert rc == 0
+
+
+def test_test_drive_cli(monkeypatch):
+    from unittest.mock import patch
+    with patch("scripts.test_drive.main") as mock_test_drive:
+        mock_test_drive.return_value = None
+        rc = main(["test-drive"])
+        assert rc == 0
+        mock_test_drive.assert_called_once()

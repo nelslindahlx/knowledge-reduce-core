@@ -181,6 +181,13 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🚗 Quick Integration System Smoke Test (`test-drive`)
+
+* **Subcommand**: `knowledgereduce test-drive`.
+* **Behavior**: Runs a complete end-to-end integration dry-run: creates a temp biochemistry source file, runs consensus extraction, builds graph relationships, calculates PageRank importances, executes multi-hop RAG walking, and prints the compiled context template.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 332 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 333 TEST CASES PASSED SUCCESSFULLY (100% green)**
