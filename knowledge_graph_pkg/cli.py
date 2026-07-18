@@ -227,6 +227,12 @@ def _build_parser() -> argparse.ArgumentParser:
     gi.add_argument("--embedder-model", default=None,
                     help="Custom embedder model name.")
 
+    gr = sub.add_parser("graph-reason",
+                        help="Execute graph reasoning algorithms on the KùzuDB graph.")
+    gr.add_argument("--graph-db", default="graph_db", help="KùzuDB path (default graph_db).")
+    gr.add_argument("--op", choices=["link", "contradictions", "transitive", "validate"],
+                    required=True, help="Graph reasoning operation to perform.")
+
     sm = sub.add_parser("serve-mcp",
                         help="Serve the graph as LLM-callable tools over HTTP+JSON.")
     sm.add_argument("--graph-db", default="graph_db", help="KùzuDB path (default graph_db).")
@@ -895,8 +901,52 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_model_prep(args)
     if args.command == "train-mlx":
         return _cmd_train_mlx(args)
+    if args.command == "graph-reason":
+        return _cmd_graph_reason(args)
     parser.print_help()
     return 1
+
+
+def _cmd_graph_reason(args) -> int:
+    """Execute graph reasoning algorithms on the KùzuDB graph."""
+    import os
+    import sys
+    import json
+    try:
+        from .kuzu_store import KuzuStore
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+
+
+    kstore = KuzuStore(args.graph_db)
+    try:
+        if args.op == "link":
+            n_links = kstore.auto_link_relations()
+            print(f"Graph auto-linking complete: created {n_links} RELATED edges.")
+        elif args.op == "contradictions":
+            contras = kstore.find_contradictions()
+            print(f"Found {len(contras)} contradiction(s):")
+            for c in contras:
+                print(f"  * Conflict between:")
+                print(f"    - Fact A: {c['a_stmt']} [quality: {c['a_qual']}, rel: {c['a_rel']}]")
+                print(f"    - Fact B: {c['b_stmt']} [quality: {c['b_qual']}, rel: {c['b_rel']}]")
+        elif args.op == "transitive":
+            infers = kstore.find_transitive_inferences()
+            print(f"Found {len(infers)} transitive inference suggestion(s):")
+            for row in infers:
+                print(f"  * Chain: {row['step1']} -> {row['step2']}")
+                print(f"    Propose direct relation: {row['subject']} -> {row['predicate']} -> {row['object']}")
+        elif args.op == "validate":
+            result = kstore.validate_and_reconcile()
+            demoted = result["demoted"]
+            print(f"Path validation complete: demoted {len(demoted)} contradictory facts to UNVERIFIED:")
+            for d in demoted:
+                print(f"  - [{d['block_id']}] {d['statement']}")
+    finally:
+        kstore.close()
+    return 0
 
 
 if __name__ == "__main__":
