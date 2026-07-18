@@ -113,7 +113,10 @@ def test_handler_dashboard_and_api():
     assert h.response_code == 404
 
 
+
 def test_fastapi_endpoints():
+    import pytest
+    pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
     from knowledge_graph_pkg.mcp_server import make_fastapi_app
     from unittest.mock import MagicMock

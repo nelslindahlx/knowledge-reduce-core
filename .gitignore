@@ -19,3 +19,5 @@ local_path
 *.db-shm
 *.db-wal
 
+test_watch_d/
+test_graph_db_d/
