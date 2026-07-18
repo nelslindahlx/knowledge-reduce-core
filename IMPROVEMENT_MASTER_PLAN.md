@@ -1,6 +1,6 @@
 # KnowledgeReduce: Strategic Improvement Master Plan
 
-This document outlines the identified technical gaps in the current **KnowledgeReduce** & **ModelReduce** architecture and structures a 10-phase implementation roadmap to enhance its scalability, local training efficiency, reasoning capacity, usability, and Hermes actionability.
+This document outlines the identified technical gaps in the current **KnowledgeReduce** & **ModelReduce** architecture and structures an 11-phase implementation roadmap to enhance its scalability, local training efficiency, reasoning capacity, usability, and Hermes actionability.
 
 ---
 
@@ -54,6 +54,7 @@ graph TD
     M7 --> M8[Phase 8: Hermes Hardening]
     M8 --> M9[Phase 9: Test Resilience & CI Hygiene]
     M9 --> M10[Phase 10: Hermes Actionable Tool Surface]
+    M10 --> M11[Phase 11: Skill Packaging Completeness & CI Validation]
 ```
 
 ### 🎯 Phase 1: Local Apple Silicon Fine-Tuning (MLX-Based SFT)
@@ -149,4 +150,17 @@ graph TD
      - `python -m knowledge_graph_pkg --help`
      - `python -m knowledge_graph_pkg eval --gold data/gold_set.json`
 * **Success Metric**: A Hermes agent can read the skill and immediately know how to call distillation, store inspection, and tool-serving operations without extra lookup.
+
+### 🎯 Phase 11: Skill Packaging Completeness & CI Validation
+* **Goal**: Make the skill self-contained, discoverable, and CI-verified so it stays correct as the repo evolves.
+* **Tasks**:
+  1. Enrich `SKILL.md` frontmatter with `category`, `usage_hint`, `required_environment_variables`, and `required_commands`.
+  2. Add skill-linked resources under `.agents/skills/knowledge-reduce-core/references/` for `TOOL_SCHEMAS` snippets.
+  3. Add `scripts/smoke_skill.py` and document it in `CONTRIBUTING.md` as the canonical skill-bootstrap verification step.
+  4. Move Hermes install/skill availability to the top of `README.md`; add a one-line skill-availability note near the main install block.
+  5. Add `.github/workflows/skill-validation.yml` that installs `.[hermes]`, runs `mirror_skill.py`, bootstraps the smoke script, and asserts skill/package version consistency.
+  6. Add `tests/test_skill.py` to enforce canonical `SKILL.md` presence, validate frontmatter, compare Hermes-installed skill to canonical source, and sync `.agents/skills.json` contents.
+  7. Update `.agents/AGENTS.md` with cross-references to the canonical skill path, mirror script, and remote verification workflow.
+  8. Add a version-consistency check that compares `SKILL.md` `version` to package metadata.
+* **Success Metric**: A fresh machine can install `.`, install the Hermes skill, run smoke tests, and push; CI validates skill metadata, files, smoke script, and version alignment on every commit.
 
