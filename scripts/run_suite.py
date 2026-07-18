@@ -37,7 +37,8 @@ def classify_stages(all_files):
         "test_lifecycle.py", "test_training_prep.py", "test_export.py",
         "test_mcp_server.py", "test_reasoning.py", "test_watcher.py",
         "test_rag.py", "test_consensus.py", "test_train_wrapper.py",
-        "test_crawler.py", "test_compile_sft.py", "test_hardening.py"
+        "test_crawler.py", "test_compile_sft.py", "test_hardening.py",
+        "test_analysis.py", "test_visualization.py"
     }
     
     stage4_files = {
