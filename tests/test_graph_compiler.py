@@ -2,10 +2,12 @@ import os
 import unittest
 import tempfile
 import shutil
-import json
+import pytest
 from knowledge_graph_pkg.graph_store_factory import get_graph_store
 from knowledge_graph_pkg.entity_resolution import resolve_and_merge_entities
 from knowledge_graph_pkg.graph_compiler import compile_subgraph_instructions, save_compiled_instructions
+
+pytest.importorskip("kuzu")
 
 class TestGraphCompilerAndResolution(unittest.TestCase):
 

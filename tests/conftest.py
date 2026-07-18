@@ -16,6 +16,8 @@ HAS_NEO4J = check_import("neo4j")
 HAS_MLX = check_import("mlx")
 HAS_LLAMA_CPP = check_import("llama_cpp")
 HAS_OLLAMA = check_import("ollama")
+HAS_FASTAPI = check_import("fastapi")
+HAS_GOOGLE_GENERATIVEAI = check_import("google.generativeai")
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "require_kuzu: skip if kuzu is not installed")
@@ -25,6 +27,8 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "require_mlx: skip if mlx is not installed")
     config.addinivalue_line("markers", "require_llama_cpp: skip if llama_cpp is not installed")
     config.addinivalue_line("markers", "require_ollama: skip if ollama is not installed")
+    config.addinivalue_line("markers", "require_fastapi: skip if fastapi is not installed")
+    config.addinivalue_line("markers", "require_google_generativeai: skip if google-generativeai is not installed")
 
 @pytest.fixture(autouse=True)
 def skip_by_marker(request):
@@ -43,3 +47,7 @@ def skip_by_marker(request):
         pytest.skip("llama-cpp-python package is not installed.")
     if request.node.get_closest_marker("require_ollama") and not HAS_OLLAMA:
         pytest.skip("ollama package is not installed.")
+    if request.node.get_closest_marker("require_fastapi") and not HAS_FASTAPI:
+        pytest.skip("fastapi package is not installed.")
+    if request.node.get_closest_marker("require_google_generativeai") and not HAS_GOOGLE_GENERATIVEAI:
+        pytest.skip("google-generativeai package is not installed.")

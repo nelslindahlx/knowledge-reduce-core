@@ -19,9 +19,12 @@ sys.modules['watchdog.events'] = mock_events
 import unittest
 import os
 import sqlite3
+import pytest
 from unittest.mock import patch
 from knowledge_graph_pkg.watcher import WatcherDaemon
 from knowledge_graph_pkg.cli import main
+
+pytest.importorskip("kuzu")
 
 class TestWatcherDaemon(unittest.TestCase):
 

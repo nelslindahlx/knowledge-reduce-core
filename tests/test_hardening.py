@@ -3,19 +3,21 @@ from unittest.mock import MagicMock, patch
 
 import unittest
 from knowledge_graph_pkg.rag import GraphRAGRetriever
-
-# Setup dummy modules before class definition
-mock_openai = MagicMock()
-mock_genai = MagicMock()
-
 from knowledge_graph_pkg.model_probe import OpenAICompatibleBackend, GeminiBackend
+
+try:
+    import google.generativeai  # noqa: F401
+    GEMINI_AVAILABLE = True
+except Exception:
+    GEMINI_AVAILABLE = False
 
 class TestSystemHardening(unittest.TestCase):
 
     def setUp(self):
         self.sys_modules_patcher = patch.dict(sys.modules, {
-            'openai': mock_openai,
-            'google.generativeai': mock_genai
+            'openai': MagicMock(),
+            'google': MagicMock(),
+            'google.generativeai': MagicMock(),
         })
         self.sys_modules_patcher.start()
 
@@ -62,6 +64,9 @@ class TestSystemHardening(unittest.TestCase):
 
     @patch.dict('os.environ', {}, clear=True)
     def test_gemini_api_key_missing(self):
+        import pytest
+        if not GEMINI_AVAILABLE:
+            pytest.skip("google-generativeai package is not installed.")
         with self.assertRaises(ValueError) as context:
             GeminiBackend(model="gemini-1.5-flash")
         self.assertIn("Gemini API key not found", str(context.exception))

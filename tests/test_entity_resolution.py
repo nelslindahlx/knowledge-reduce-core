@@ -2,9 +2,12 @@ import os
 import unittest
 import tempfile
 import shutil
+import pytest
 from knowledge_graph_pkg.graph_store_factory import get_graph_store
 from knowledge_graph_pkg.entity_resolution import resolve_and_merge_entities, _get_blocking_keys
 
+
+pytest.importorskip("kuzu")
 class TestEntityResolution(unittest.TestCase):
 
     def setUp(self):

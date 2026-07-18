@@ -3,8 +3,11 @@ import unittest
 import tempfile
 import shutil
 import json
+import pytest
 from knowledge_graph_pkg.graph_store_factory import get_graph_store
 from knowledge_graph_pkg.ontology import OntologyDistiller
+
+pytest.importorskip("kuzu")
 
 class TestOntologyDistiller(unittest.TestCase):
 

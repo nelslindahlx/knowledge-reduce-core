@@ -70,6 +70,8 @@ def _ollama_up():
 
 @pytest.mark.skipif(not _ollama_up(), reason="Ollama server not available")
 def test_live_ollama_probe_smoke():
+    import pytest
+    pytest.importorskip("ollama")
     from knowledge_graph_pkg.model_probe import OllamaBackend
     backend = OllamaBackend(model="qwen2.5:7b")
     probe = ModelProbe(backend=backend, model="qwen2.5:7b")
@@ -81,6 +83,8 @@ def test_live_ollama_probe_smoke():
 
 def test_gemini_backend_interface():
     import sys
+    import pytest
+    pytest.importorskip("google.generativeai")
     from unittest.mock import MagicMock
     
     mock_genai = MagicMock()

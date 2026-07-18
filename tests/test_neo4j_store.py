@@ -20,6 +20,8 @@ class TestNeo4jStore(unittest.TestCase):
         self.mock_driver.session.return_value.__enter__.return_value = self.mock_session
 
     def test_factory_routing(self):
+        import pytest
+        pytest.importorskip("kuzu")
         store = get_graph_store("local_path")
         self.assertEqual(store.__class__.__name__, "KuzuStore")
         store.close()
