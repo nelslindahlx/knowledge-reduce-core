@@ -6,6 +6,16 @@
 **Distill documents into compact, reliability-rated, model-absorbable
 knowledge facts** — the "reduce" in KnowledgeReduce.
 
+This repo includes an installed Hermes skill for distillation, store inspection,
+and graph-tool dispatch. Install the package, then mirror the skill into Hermes:
+
+```bash
+pip install -e ".[hermes]"
+python3 scripts/mirror_skill.py
+```
+
+See `.agents/skills/knowledge-reduce-core/SKILL.md` for Hermes usage and smoke commands.
+
 Point it at text (or HTML/Markdown/PDF), and it extracts facts, attributes
 pronouns, filters out noise, ranks by quality, deduplicates, and emits
 fine-tuning-ready JSONL or a RAG-ready digest. The core is pure-Python and
