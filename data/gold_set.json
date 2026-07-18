@@ -1,0 +1,20 @@
+{
+  "description": "Hand-labeled gold set for evaluating the SVO extractor. Each item has a sentence and the expected (subject, predicate, object) triples a correct extractor should produce. Empty 'facts' means the sentence should yield NO facts (e.g. headers, fragments). Matching is lenient: case-insensitive substring on subject+object, and predicate-family aware.",
+  "items": [
+    {"text": "Robert Putnam wrote Bowling Alone.", "facts": [{"subject": "Robert Putnam", "predicate": "wrote", "object": "Bowling Alone"}]},
+    {"text": "Marie Curie was born in Warsaw.", "facts": [{"subject": "Marie Curie", "predicate": "born_in", "object": "Warsaw"}]},
+    {"text": "Charles Carlsen was President of Johnson County Community College.", "facts": [{"subject": "Charles Carlsen", "predicate": "president_of", "object": "Johnson County Community College"}]},
+    {"text": "Graduation With Civic Honors was published in 2006.", "facts": [{"subject": "Graduation With Civic Honors", "predicate": "published", "object": "2006"}]},
+    {"text": "Deborah DeGrate and Chris Engle graduated with civic honors.", "facts": [{"subject": "Deborah DeGrate", "predicate": "graduated", "object": "civic honors"}, {"subject": "Chris Engle", "predicate": "graduated", "object": "civic honors"}]},
+    {"text": "Nels Lindahl developed a civic honors program.", "facts": [{"subject": "Nels Lindahl", "predicate": "developed", "object": "civic honors program"}]},
+    {"text": "Susan Lindahl told Carlsen about the idea.", "facts": [{"subject": "Susan Lindahl", "predicate": "told", "object": "Carlsen"}]},
+    {"text": "Thomas Longoria collaborated on the project.", "facts": [{"subject": "Thomas Longoria", "predicate": "collaborated", "object": "project"}]},
+    {"text": "Key Components:", "facts": []},
+    {"text": "Chapter 1: What is Civic Engagement?", "facts": []},
+    {"text": "However, change is inevitable.", "facts": []},
+    {"text": "The university becomes a strategic partner.", "facts": [{"subject": "university", "predicate": "becomes", "object": "strategic partner"}]},
+    {"text": "Dr. Raymond Davis provided advice and guidance.", "facts": [{"subject": "Raymond Davis", "predicate": "provided", "object": "advice and guidance"}]},
+    {"text": "Johnson County Community College developed a pilot program in 2004.", "facts": [{"subject": "Johnson County Community College", "predicate": "developed", "object": "pilot program"}]},
+    {"text": "Albert Einstein developed the theory of relativity.", "facts": [{"subject": "Albert Einstein", "predicate": "developed", "object": "theory of relativity"}]}
+  ]
+}

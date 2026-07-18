@@ -1,0 +1,27 @@
+{
+  "domain": "biochemistry",
+  "facts": [
+    {"subject": "Mitochondria", "predicate": "produce", "object": "ATP", "context": "via oxidative phosphorylation", "verified": true},
+    {"subject": "DNA polymerase", "predicate": "synthesizes", "object": "DNA", "context": "5' to 3' direction", "verified": true},
+    {"subject": "Glucose", "predicate": "is", "object": "a monosaccharide", "verified": true},
+    {"subject": "Ribosomes", "predicate": "synthesize", "object": "proteins", "verified": true},
+    {"subject": "Enzymes", "predicate": "are", "object": "biological catalysts", "verified": true},
+    {"subject": "ATP", "predicate": "stores", "object": "chemical energy", "verified": true},
+    {"subject": "Hemoglobin", "predicate": "transports", "object": "oxygen", "context": "in red blood cells", "verified": true},
+    {"subject": "Photosynthesis", "predicate": "produces", "object": "glucose", "context": "in plants", "verified": true},
+    {"subject": "Glycolysis", "predicate": "breaks down", "object": "glucose", "context": "into pyruvate", "verified": true},
+    {"subject": "RNA", "predicate": "contains", "object": "uracil", "verified": true},
+    {"subject": "Amino acids", "predicate": "are building blocks of", "object": "proteins", "verified": true},
+    {"subject": "Lipids", "predicate": "form", "object": "cell membranes", "verified": true},
+    {"subject": "Krebs cycle", "predicate": "occurs in", "object": "mitochondria", "verified": true},
+    {"subject": "Insulin", "predicate": "regulates", "object": "blood glucose", "verified": true},
+    {"subject": "Chlorophyll", "predicate": "absorbs", "object": "light", "context": "for photosynthesis", "verified": true}
+  ],
+  "negative": [
+    {"subject": "Mitochondria", "predicate": "perform", "object": "photosynthesis", "verified": false},
+    {"subject": "DNA", "predicate": "contains", "object": "uracil", "verified": false},
+    {"subject": "Ribosomes", "predicate": "store", "object": "genetic information", "verified": false},
+    {"subject": "Glucose", "predicate": "is", "object": "a protein", "verified": false},
+    {"subject": "Enzymes", "predicate": "are", "object": "consumed in reactions", "verified": false}
+  ]
+}
