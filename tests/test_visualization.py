@@ -1,4 +1,6 @@
 import unittest
+import pytest
+pytest.importorskip("matplotlib")
 import os
 import tempfile
 import networkx as nx

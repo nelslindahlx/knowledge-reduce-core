@@ -210,3 +210,42 @@ class KnowledgeStore:
             "sources": sorted({d.get("source") for d in drops}),
             "schema_version": self._manifest.get("schema_version", SCHEMA_VERSION),
         }
+
+    def audit_summary(self) -> Dict[str, Any]:
+        """Perform diagnostic analysis over the drops and facts in the store."""
+        drops = self.list_drops()
+        total_facts = 0
+        reliability_counts = {}
+        missing_svo_count = 0
+        duplicate_svo_count = 0
+        
+        seen_svo = set()
+        
+        for fact in self.iter_facts():
+            total_facts += 1
+            
+            rel = fact.get("reliability") or "UNVERIFIED"
+            reliability_counts[rel] = reliability_counts.get(rel, 0) + 1
+            
+            subj = str(fact.get("subject") or "").strip()
+            pred = str(fact.get("predicate") or "").strip()
+            obj = str(fact.get("object") or "").strip()
+            stmt = str(fact.get("statement") or "").strip()
+            
+            if not subj or not pred or not obj or not stmt:
+                missing_svo_count += 1
+            
+            svo_key = (subj.lower(), pred.lower(), obj.lower())
+            if svo_key in seen_svo:
+                duplicate_svo_count += 1
+            else:
+                seen_svo.add(svo_key)
+                
+        return {
+            "total_drops": len(drops),
+            "total_facts": total_facts,
+            "reliability_tier_distribution": reliability_counts,
+            "missing_fields_count": missing_svo_count,
+            "duplicate_svo_count": duplicate_svo_count,
+        }
+
