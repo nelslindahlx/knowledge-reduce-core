@@ -13,6 +13,7 @@ function-calling / MCP tool registration.
 
 import re
 from typing import Any, Dict, List
+from .rag import GraphRAGRetriever
 
 # Cypher keywords that mutate data or schema -- forbidden in the tool layer.
 _FORBIDDEN = re.compile(
@@ -49,6 +50,21 @@ class GraphTools:
                                   limit: int = 100) -> List[Dict[str, Any]]:
         """Find facts at a given reliability tier, best-quality first."""
         return self.store.find_by_reliability(reliability, limit=limit)
+
+    def graph_rag_retrieve(self, query: str, top_k: int = 5, hops: int = 2,
+                           exclude_unverified: bool = True) -> List[Dict[str, Any]]:
+        """Perform a hybrid multi-hop Graph-RAG retrieval over the knowledge store.
+
+        Returns semantically relevant facts and their adjacent concept hops, scored
+        by semantic similarity and PageRank network importance.
+        """
+        retriever = GraphRAGRetriever(self.store)
+        return retriever.retrieve(
+            query=query,
+            top_k=top_k,
+            hops=hops,
+            exclude_unverified=exclude_unverified
+        )
 
 
 # JSON-schema tool definitions for LLM function-calling / MCP registration.
@@ -90,4 +106,19 @@ TOOL_SCHEMAS = [
             "required": ["reliability"],
         },
     },
+    {
+        "name": "graph_rag_retrieve",
+        "description": "Perform a hybrid multi-hop Graph-RAG retrieval over the knowledge graph. "
+                       "Retrieves semantically similar facts and walks their relationship paths.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Query string to retrieve context for."},
+                "top_k": {"type": "integer", "description": "Number of initial seed facts to retrieve (default: 5)."},
+                "hops": {"type": "integer", "description": "Number of graph connection hops to walk (default: 2)."},
+                "exclude_unverified": {"type": "boolean", "description": "Exclude UNVERIFIED/contradicted facts (default: true)."}
+            },
+            "required": ["query"]
+        }
+    }
 ]

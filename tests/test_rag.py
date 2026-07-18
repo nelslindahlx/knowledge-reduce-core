@@ -117,3 +117,55 @@ class TestGraphRAGRetriever(unittest.TestCase):
         self.assertIn("b2", bids)
         self.assertIn("b3", bids)
 
+    def test_exclude_unverified_filtering(self):
+        mock_store = MagicMock()
+        def mock_query(cypher, params=None):
+            if "MATCH (f:Fact)" in cypher and "f.statement" not in cypher:
+                return [{"block_id": "b1"}, {"block_id": "b2"}]
+            if "MATCH (a:Fact)-[r:RELATED]->(b:Fact)" in cypher:
+                return [{"src": "b1", "dst": "b2"}]
+            if "MATCH (f:Fact)" in cypher and "f.statement" in cypher:
+                return [
+                    {"block_id": "b1", "statement": "A relates to B", "subject": "A", "predicate": "relates to", "object": "B", "reliability": "VERIFIED"},
+                    {"block_id": "b2", "statement": "B relates to C", "subject": "B", "predicate": "relates to", "object": "C", "reliability": "UNVERIFIED"}
+                ]
+            if "MATCH (a:Fact)-[r:RELATED]-(b:Fact)" in cypher:
+                if "reliability <> 'UNVERIFIED'" in cypher:
+                    return []
+                return [{"block_id": "b2", "statement": "B relates to C", "subject": "B", "predicate": "relates to", "object": "C", "reliability": "UNVERIFIED"}]
+            return []
+            
+        mock_store.query.side_effect = mock_query
+        retriever = GraphRAGRetriever(store=mock_store)
+        
+        # When exclude_unverified=True, b2 (UNVERIFIED) should be filtered out
+        results_filtered = retriever.retrieve("A", top_k=2, hops=1, exclude_unverified=True)
+        bids_filtered = [r["block_id"] for r in results_filtered]
+        self.assertIn("b1", bids_filtered)
+        self.assertNotIn("b2", bids_filtered)
+
+        # When exclude_unverified=False, b2 should be included
+        results_all = retriever.retrieve("A", top_k=2, hops=1, exclude_unverified=False)
+        bids_all = [r["block_id"] for r in results_all]
+        self.assertIn("b1", bids_all)
+        self.assertIn("b2", bids_all)
+
+    def test_graph_rag_retrieve_tool(self):
+        from knowledge_graph_pkg.graph_tool import GraphTools, TOOL_SCHEMAS
+        
+        mock_store = MagicMock()
+        mock_store.count.return_value = 1
+        mock_store.query.return_value = [
+            {"block_id": "b1", "statement": "A relates to B", "subject": "A", "predicate": "relates to", "object": "B", "reliability": "VERIFIED"}
+        ]
+        
+        tools = GraphTools(store=mock_store)
+        results = tools.graph_rag_retrieve(query="A", top_k=1, hops=1)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["block_id"], "b1")
+        
+        # Verify schema is in TOOL_SCHEMAS
+        tool_names = [t["name"] for t in TOOL_SCHEMAS]
+        self.assertIn("graph_rag_retrieve", tool_names)
+
+

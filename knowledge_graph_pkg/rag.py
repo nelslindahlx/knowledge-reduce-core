@@ -123,13 +123,16 @@ class GraphRAGRetriever:
         self._last_fact_count = current_count
         return scores
 
-    def retrieve(self, query: str, top_k: int = 5, hops: int = 2, pagerank_weight: float = 0.3) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int = 5, hops: int = 2, pagerank_weight: float = 0.3, exclude_unverified: bool = True) -> List[Dict[str, Any]]:
         """Perform hybrid multi-hop retrieval:
         1. Retrieve seed facts.
         2. Traverse multi-hop paths to find adjacent facts.
         3. Score and rank all candidate facts using both semantic similarity and Page-Rank importance.
         """
         seeds = self.retrieve_seeds(query, limit=top_k)
+        if exclude_unverified:
+            seeds = [s for s in seeds if s.get("reliability") != "UNVERIFIED"]
+            
         if not seeds:
             return []
 
@@ -145,9 +148,12 @@ class GraphRAGRetriever:
             next_level = []
             for node in current_level:
                 try:
+                    where_clause = "WHERE a.block_id = $bid "
+                    if exclude_unverified:
+                        where_clause += "AND b.reliability <> 'UNVERIFIED' "
+                        
                     related = self.store.query(
-                        "MATCH (a:Fact)-[r:RELATED]-(b:Fact) "
-                        "WHERE a.block_id = $bid "
+                        "MATCH (a:Fact)-[r:RELATED]-(b:Fact) " + where_clause +
                         "RETURN b.block_id AS block_id, b.statement AS statement, "
                         "b.subject AS subject, b.predicate AS predicate, b.object AS object, "
                         "b.reliability AS reliability, b.quality AS quality",

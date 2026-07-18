@@ -98,6 +98,13 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🔗 Exposing Graph-RAG Retrieval via MCP Tool Server (`graph_rag_retrieve`)
+
+* **Unverified Fact Filtering in Graph-RAG**: Integrated a new `exclude_unverified` parameter (default: True) into the hybrid vector + PageRank RAG retriever. This filters out `UNVERIFIED` (demoted) facts from both seed retrieval and path walks to prevent hallucinated/contradictory facts from polluting generative LLM prompts.
+* **LLM-Callable Tool Facade**: Added `graph_rag_retrieve` directly to the `GraphTools` facade and its schema registry in [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py). Any agent connected via the MCP protocol can now trigger full semantic and multi-hop path retrieval using a simple function-call interface.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 320 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 322 TEST CASES PASSED SUCCESSFULLY (100% green)**
