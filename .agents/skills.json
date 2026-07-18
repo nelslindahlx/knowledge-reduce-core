@@ -3,7 +3,13 @@
     {
       "name": "knowledge-reduce-core",
       "canonical_path": ".agents/skills/knowledge-reduce-core/SKILL.md",
-      "is_active": true
+      "is_active": true,
+      "related_skills": [],
+      "metadata": {
+        "hermes": {
+          "tags": ["knowledge-graph", "distillation", "nlp", "training-data", "fine-tuning", "hermes"]
+        }
+      }
     }
   ]
 }

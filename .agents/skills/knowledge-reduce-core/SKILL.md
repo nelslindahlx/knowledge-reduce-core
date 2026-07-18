@@ -8,6 +8,7 @@ platforms: [linux, macos, windows]
 metadata:
   hermes:
     tags: [knowledge-graph, distillation, nlp, training-data, fine-tuning, hermes]
+    related_skills: []
 ---
 
 # KnowledgeReduce Core
@@ -24,6 +25,14 @@ python3 -m pip install -e ".[hermes]"
 Editable install is preferred in this repo. If `pip install -e .` is blocked by
 system Python permissions, use a local `.venv` or in-repo paths.
 
+## Optional dependencies
+
+- Ingestion: `.[ingest,pdf]`
+- NLP: `.[nlp]`
+- Visualization: `.[viz]`
+- ModelReduce: `.[model-reduce,graph]`
+- Hermes/runtime helpers: `.[hermes]`
+
 ## Run
 
 CLI entrypoint:
@@ -39,6 +48,19 @@ knowledgereduce serve-mcp --graph-db graph_db --host 127.0.0.1 --port 8080
 Module entrypoint:
 ```bash
 python -m knowledge_graph_pkg distill input.txt -o train.jsonl --format chat
+```
+
+## Verification & Smoke Sequences
+
+```bash
+# Package importability
+python -c "import knowledge_graph_pkg; print(knowledge_graph_pkg.__version__)"
+
+# Core extraction path
+python -m knowledge_graph_pkg eval --gold data/gold_set.json
+
+# CLI help
+python -m knowledge_graph_pkg --help
 ```
 
 ## MCP server
@@ -60,6 +82,11 @@ Install into Hermes skills directory:
 ```bash
 mkdir -p ~/.hermes/skills/software-development/knowledge-reduce-core
 cp .agents/skills/knowledge-reduce-core/SKILL.md ~/.hermes/skills/software-development/knowledge-reduce-core/SKILL.md
+```
+
+Verify install matches canonical source:
+```bash
+diff -q .agents/skills/knowledge-reduce-core/SKILL.md ~/.hermes/skills/software-development/knowledge-reduce-core/SKILL.md
 ```
 
 ## Repo hygiene

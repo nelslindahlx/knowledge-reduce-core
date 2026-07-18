@@ -39,6 +39,12 @@ To set up a local development workspace, execute the following:
    python3 scripts/mirror_skill.py
    ```
 
+6. **Verify remote sync**:
+   Confirm the canonical skill reached GitHub:
+   ```bash
+   gh api repos/nelslindahlx/knowledge-reduce-core/contents/.agents/skills/knowledge-reduce-core/SKILL.md --jq '.name, .size, .sha'
+   ```
+
 ---
 
 ## 🧪 2. Testing Guidelines & Stage-Based Verification
