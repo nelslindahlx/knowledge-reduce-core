@@ -26,9 +26,18 @@ This document outlines the identified technical gaps in the current **KnowledgeR
    * *Problem*: The catalog store can only be inspected via command-line list tables or raw JSON logs.
    * *Gap*: No interactive interface (like Streamlit or Marimo notebooks) to visualize the knowledge graph topology, inspect drops, or trace evaluation precision.
 
-6. **Static File Ingestion (No daemon watcher)**:
-   * *Problem*: Processing requires manual CLI invocations of `knowledgereduce distill` or `knowledgereduce drop`.
+6. **Static File Ingestion (No daemon watcher)**: 
+   * *Problem*: Processing requires manual CLI invocations of `knowledgereduce distill` or `knowledgereduce drop`. 
    * *Gap*: No background watcher daemon to automatically ingest new files in real-time as they appear in a directory.
++
++7. **Agent Usability Gaps**: 
++   * *Problem*: The current workflow lacks a lightweight audit path and offline fallback for critique workflows. QA output is brittle for model training; bad phrasing can slip through. 
++   * *Gap*: No `audit-store` CLI to inspect drops/reliability, and `critique` assumes API backends with no rule-based fallback. 
++   * *Gap*: Hermes skill packaging is partial; no formal smoke command, remote verification step, or skill metadata registry.
++
++8. **Hermes Integration Hardening**: 
++   * *Problem*: The repo has a canonical skill artifact and optional extras, but missing formal registry metadata, remote sync verification, and agent-facing smoke sequences. 
++   * *Gap*: No repeatable skill install/verify workflow, no documented bounded-timeout defaults, and no explicit MCP tool schema surface for Hermes dispatch.
 
 ---
 
@@ -41,6 +50,8 @@ graph TD
     M3 --> M4[Phase 4: Lightweight Coref]
     M4 --> M5[Phase 5: Interactive Dashboard]
     M5 --> M6[Phase 6: Watcher Daemon]
+    M6 --> M7[Phase 7: Store Audit + Critique Fallback]
+    M7 --> M8[Phase 8: Hermes Hardening]
 ```
 
 ### 🎯 Phase 1: Local Apple Silicon Fine-Tuning (MLX-Based SFT)
@@ -94,3 +105,23 @@ graph TD
   2. Automatically trigger `drop` pipelines as new TXT, HTML, or PDF files are added or modified.
   3. Log daemon activities and state to a sqlite database.
 * **Success Metric**: Background ingestion of new papers/articles into the graph database within 5 seconds of file creation.
+
+### 🎯 Phase 7: Store Audit + Critique Fallback
+* **Goal**: Give agents and operators a lightweight inspection/audit CLI and an offline critique path so bad facts don’t silently enter training shards.
+* **Tasks**:
+  1. Add `audit-store` CLI: show recent drops, counts per reliability tier, missing fields, duplicate subjects.
+  2. Add rule-based critique fallback when no LLM backend is configured: pronoun-subject checks, shallow duplicate detection, subject-verb agreement heuristics.
+  3. Gate export/report commands on `audit-store` before DISTILL/CRITIQUE actions when confidence is low.
+* **Success Metric**: Operator can run one repo-local command after DROP to see quality state; critique works without API access.
+
+### 🎯 Phase 8: Hermes Hardening & Skill Packaging
+* **Goal**: Make the repo fully Hermes-friendly from skill install to runtime verification.
+* **Tasks**:
+  1. Add canonical skill manifest under `.agents/skills/knowledge-reduce-core/SKILL.md`.
+  2. Add `.agents/skills.json` registry with canonical path and metadata.
+  3. Add dedicated `hermes` optional extras in `pyproject.toml`, keeping base install dependency-light.
+  4. Document install and mirror script (`scripts/mirror_skill.py`) in `README.md` and `CONTRIBUTING.md`.
+  5. Document smoke commands and bounded timeout defaults in the skill file.
+  6. Verify `python -m pytest -q` passes outside optional dependency clusters for core functionality.
+  7. Add remote read-back instructions so maintainers can verify canonical skill reach GitHub after push.
+* **Success Metric**: A fresh machine can install `.`, install Hermes skill, run smoke tests, and push without missing metadata.
