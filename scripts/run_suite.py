@@ -39,7 +39,7 @@ def classify_stages(all_files):
         "test_rag.py", "test_consensus.py", "test_train_wrapper.py",
         "test_crawler.py", "test_compile_sft.py", "test_hardening.py",
         "test_analysis.py", "test_visualization.py", "test_vector_index.py",
-        "test_neo4j_store.py"
+        "test_neo4j_store.py", "test_entity_resolution.py", "test_ontology.py"
     }
     
     stage4_files = {
@@ -68,7 +68,7 @@ def classify_stages(all_files):
         "4": sorted(stage4)
     }
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="KnowledgeReduce Test Suite Stage Manager")
     parser.add_argument(
         "--stage",
@@ -82,7 +82,7 @@ def main():
         help="Display pytest verbose logging output"
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     all_files = get_test_files()
     stages = classify_stages(all_files)
 

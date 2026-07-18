@@ -338,3 +338,12 @@ def test_test_drive_cli(monkeypatch):
             assert rc == 0
             mock_test_drive.assert_called_once()
             mock_download_and_crawl.assert_called_once()
+
+
+def test_run_suite_cli(monkeypatch):
+    from unittest.mock import patch
+    with patch("scripts.run_suite.main") as mock_run_suite:
+        mock_run_suite.return_value = None
+        rc = main(["run-suite", "--stage", "1", "--verbose"])
+        assert rc == 0
+        mock_run_suite.assert_called_once_with(["--stage", "1", "--verbose"])

@@ -167,7 +167,7 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
-## 🔌 Exposing Distill Ontology via MCP Tool Server (`graph_distill_ontology`)
+## 🔌 Exposing Distill Ontology via MCP Server (`graph_distill_ontology`)
 
 * **Tool Facade**: Registered `graph_distill_ontology` as an LLM-callable function in [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py).
 * **Behavior**: Allows connected AI agents to query the high-level class taxonomy, semantic categories, and relation schemas dynamically.
@@ -183,11 +183,18 @@ We implemented a robust connection string parser to dynamically extract database
 
 ## 🚗 Quick Integration System Smoke Test (`test-drive`)
 
-* **Subcommand**: `knowledgereduce test-drive`.
-* **Behavior**: Runs a complete end-to-end integration dry-run: creates a temp biochemistry source file, runs consensus extraction, builds graph relationships, calculates PageRank importances, executes multi-hop RAG walking, and prints the compiled context template.
+* **Subcommand**: `knowledgereduce test-drive [--crawl]`.
+* **Behavior**: Runs a complete end-to-end integration dry-run: creates a temp biochemistry source file, runs consensus extraction, builds graph relationships, calculates PageRank importances, executes multi-hop RAG walking, and prints the compiled context template. If `--crawl` is passed, also downloads a GGUF model and performs model weights weight-crawling.
+
+---
+
+## 📑 Test Suite Pipeline Stage Manager (`run-suite`)
+
+* **Subcommand**: `knowledgereduce run-suite [--stage <1|2|3|4|all>] [--verbose]`.
+* **Behavior**: Runs partitioned subsets of the test suite (1: Fast core units, 2: Semantic models, 3: DB lifecycle, 4: Complex LLM evaluation probes) to optimize feedback loops for local developers.
 
 ---
 
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 333 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 334 TEST CASES PASSED SUCCESSFULLY (100% green)**

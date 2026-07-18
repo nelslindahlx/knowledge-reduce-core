@@ -360,6 +360,12 @@ def _build_parser() -> argparse.ArgumentParser:
     td.add_argument("--crawl", action="store_true",
                     help="Also run local GGUF model download and weight crawling verification.")
 
+    rs = sub.add_parser("run-suite",
+                        help="Run the test suite partitioned by stages to optimize development iterations.")
+    rs.add_argument("--stage", choices=["1", "2", "3", "4", "all"], default="1",
+                    help="Select execution stage: 1 (Fast Core), 2 (Semantic), 3 (DB/Integration), 4 (LLM/Eval), all.")
+    rs.add_argument("--verbose", action="store_true", help="Display pytest verbose logging output.")
+
     qg = sub.add_parser("query-graph",
                         help="Run interactive or one-shot Graph-RAG queries over the graph store.")
     qg.add_argument("query", help="The natural-language question or key terms to retrieve paths for.")
@@ -1052,6 +1058,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_train_sft(args)
     if args.command == "test-drive":
         return _cmd_test_drive(args)
+    if args.command == "run-suite":
+        return _cmd_run_suite(args)
     parser.print_help()
     return 1
 
@@ -1559,6 +1567,24 @@ def _cmd_test_drive(args) -> int:
     except Exception as exc:
         import sys
         print(f"Error running test drive: {exc}", file=sys.stderr)
+        return 1
+
+
+def _cmd_run_suite(args) -> int:
+    """Run the test suite partitioned by stages."""
+    from scripts import run_suite
+    argv = ["--stage", args.stage]
+    if args.verbose:
+        argv.append("--verbose")
+    try:
+        run_suite.main(argv)
+        return 0
+    except SystemExit as exc:
+        # SystemExit passes the returncode of pytest
+        return exc.code
+    except Exception as exc:
+        import sys
+        print(f"Error running test suite stage: {exc}", file=sys.stderr)
         return 1
 
 
