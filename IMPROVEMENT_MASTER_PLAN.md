@@ -1,6 +1,6 @@
 # KnowledgeReduce: Strategic Improvement Master Plan
 
-This document outlines the identified technical gaps in the current **KnowledgeReduce** & **ModelReduce** architecture and structures a 6-phase implementation roadmap to enhance its scalability, local training efficiency, reasoning capacity, and usability.
+This document outlines the identified technical gaps in the current **KnowledgeReduce** & **ModelReduce** architecture and structures a 10-phase implementation roadmap to enhance its scalability, local training efficiency, reasoning capacity, usability, and Hermes actionability.
 
 ---
 
@@ -53,6 +53,7 @@ graph TD
     M6 --> M7[Phase 7: Store Audit + Critique Fallback]
     M7 --> M8[Phase 8: Hermes Hardening]
     M8 --> M9[Phase 9: Test Resilience & CI Hygiene]
+    M9 --> M10[Phase 10: Hermes Actionable Tool Surface]
 ```
 
 ### 🎯 Phase 1: Local Apple Silicon Fine-Tuning (MLX-Based SFT)
@@ -135,3 +136,17 @@ graph TD
   3. Verify the stage runners report skipped tests explicitly and do not abort core test execution.
   4. Add a CI/automation-friendly verification command that runs core smoke tests without optional deps.
 * **Success Metric**: `pip install -e .` followed by `python -m pytest -q` completes without missing-import collection failures.
+
+### 🎯 Phase 10: Hermes Actionable Tool Surface
+* **Goal**: Make the skill directly useful for Hermes dispatch by exposing the repo's actual tool surface and preferred invocation patterns.
+* **Tasks**:
+  1. Add a `## Tool surface` section to `.agents/skills/knowledge-reduce-core/SKILL.md` that lists Hermes-callable capabilities, including `GraphTools` methods and `TOOL_SCHEMAS`.
+  2. Add `## Preferred invocation` guidance in the skill: use local `GraphTools(...)` first; use HTTP/`serve-mcp` only when an external LLM runtime needs MCP.
+  3. Add `## Hermes prompt patterns` with concrete request/response examples for `distill`, `drop`, `catalog`, `compile`, `serve-mcp`, and MCP `GET /tools` / `POST /tools/call`.
+  4. Add `## Safety/timeout defaults` with explicit bounds for CLI/MCP operations.
+  5. Document MCP/tool introspection commands:
+     - `python -c "from knowledge_graph_pkg.mcp_server import list_tools; print(list_tools())"`
+     - `python -m knowledge_graph_pkg --help`
+     - `python -m knowledge_graph_pkg eval --gold data/gold_set.json`
+* **Success Metric**: A Hermes agent can read the skill and immediately know how to call distillation, store inspection, and tool-serving operations without extra lookup.
+
