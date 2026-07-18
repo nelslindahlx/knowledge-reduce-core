@@ -901,8 +901,10 @@ def make_fastapi_app(tools: Any) -> Any:
             
             # Extract database path or URL from the store
             db_path = getattr(tools.store, "db_path", None)
-            if not db_path:
+            if not isinstance(db_path, str):
                 db_path = getattr(tools.store, "url", "graph_db")
+            if not isinstance(db_path, str):
+                db_path = "graph_db"
                 
             if "/" in db_path or "\\" in db_path or db_path == "local_path":
                 ws_path = os.path.join(os.path.dirname(db_path), f"graph_db_{workspace_id}")
