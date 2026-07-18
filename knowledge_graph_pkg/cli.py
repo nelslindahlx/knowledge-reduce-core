@@ -862,7 +862,7 @@ def _cmd_graph_ingest(args) -> int:
         print(f"error: store not found: {args.store}", file=sys.stderr)
         return 2
     try:
-        from .kuzu_store import KuzuStore
+        from .graph_store_factory import get_graph_store
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
@@ -882,9 +882,9 @@ def _cmd_graph_ingest(args) -> int:
         similarity_threshold=args.similarity, embedder=embedder)
     facts = distiller.select_facts()
 
-    kstore = KuzuStore(args.graph_db)
+    kstore = get_graph_store(args.graph_db)
     kstore.ingest_facts(facts)
-    print(f"Ingested {len(facts)} facts into KùzuDB at {args.graph_db} "
+    print(f"Ingested {len(facts)} facts into Graph DB at {args.graph_db} "
           f"(graph now has {kstore.count()} facts).")
     return 0
 
@@ -991,14 +991,12 @@ def _cmd_graph_reason(args) -> int:
     import sys
     import json
     try:
-        from .kuzu_store import KuzuStore
+        from .graph_store_factory import get_graph_store
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-
-
-    kstore = KuzuStore(args.graph_db)
+    kstore = get_graph_store(args.graph_db)
     try:
         if args.op == "link":
             n_links = kstore.auto_link_relations()
@@ -1168,7 +1166,7 @@ def _cmd_critique(args) -> int:
     import sys
     try:
         from .critique import FactCritic
-        from .kuzu_store import KuzuStore
+        from .graph_store_factory import get_graph_store
         from .store import KnowledgeStore
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1182,13 +1180,13 @@ def _cmd_critique(args) -> int:
         facts = list(store.iter_facts())
         print(f"Loaded {len(facts)} facts from KnowledgeStore '{args.store}'.")
     else:
-        kstore = KuzuStore(args.graph_db)
+        kstore = get_graph_store(args.graph_db)
         facts = kstore.query(
             "MATCH (f:Fact) "
             "RETURN f.block_id AS block_id, f.statement AS fact_statement, "
             "f.subject AS subject, f.predicate AS predicate, f.object AS object"
         )
-        print(f"Loaded {len(facts)} facts from Kùzu Graph Database '{args.graph_db}'.")
+        print(f"Loaded {len(facts)} facts from Graph Database '{args.graph_db}'.")
 
     if not facts:
         print("No facts found to critique.")
@@ -1239,7 +1237,7 @@ def _cmd_compile_sft(args) -> int:
     import os
     import sys
     try:
-        from .kuzu_store import KuzuStore
+        from .graph_store_factory import get_graph_store
         from .store import KnowledgeStore
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1250,7 +1248,7 @@ def _cmd_compile_sft(args) -> int:
         store = KnowledgeStore(args.store)
         facts = list(store.iter_facts())
     else:
-        kstore = KuzuStore(args.graph_db)
+        kstore = get_graph_store(args.graph_db)
         facts = kstore.query(
             "MATCH (f:Fact) "
             "RETURN f.statement AS fact_statement, f.subject AS subject"

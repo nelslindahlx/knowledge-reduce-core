@@ -984,11 +984,11 @@ def make_fastapi_app(tools: Any) -> Any:
 
 
 def serve(store_path: str, host: str = "127.0.0.1", port: int = 8080) -> None:  # pragma: no cover
-    """Start the tool server backed by a KuzuStore at ``store_path``."""
-    from .kuzu_store import KuzuStore
+    """Start the tool server backed by a graph store at ``store_path``."""
+    from .graph_store_factory import get_graph_store
     from .graph_tool import GraphTools
 
-    tools = GraphTools(KuzuStore(store_path))
+    tools = GraphTools(get_graph_store(store_path))
     
     try:
         import uvicorn
