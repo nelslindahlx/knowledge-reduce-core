@@ -12,3 +12,7 @@ test_drive_graph/
 graph_db/
 store/
 
+
+graph_db_*
+local_path
+
