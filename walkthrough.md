@@ -160,6 +160,13 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🔍 Interactive Graph-RAG Terminal Query (`query-graph`)
+
+* **Subcommand**: `knowledgereduce query-graph "<string>" --graph-db <path> [--top-k <5>] [--hops <2>] [--format <markdown|json>]`.
+* **Behavior**: Runs hybrid PageRank Graph-RAG path retrieval directly in the shell. Outputs a color-coded terminal representation of retrieved facts, and prints the finalized context chunk.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 329 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 330 TEST CASES PASSED SUCCESSFULLY (100% green)**

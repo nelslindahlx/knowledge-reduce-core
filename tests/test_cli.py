@@ -303,3 +303,17 @@ def test_model_distill_split(tmp_path):
                "--min-agreement", "2", "--split", "0.5"])
     assert rc == 0
     assert out.exists() and (tmp_path / "s.jsonl.val").exists()
+
+
+def test_query_graph_cli(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+    mock_store = MagicMock()
+    mock_store.count.return_value = 1
+    mock_store.query.return_value = [
+        {"block_id": "b1", "statement": "Mitochondria produces ATP", "subject": "Mitochondria", "predicate": "produces", "object": "ATP", "reliability": "VERIFIED"}
+    ]
+    
+    monkeypatch.setattr("knowledge_graph_pkg.graph_store_factory.get_graph_store", lambda path: mock_store)
+    
+    rc = main(["query-graph", "Mitochondria", "--graph-db", str(tmp_path / "dummy_db")])
+    assert rc == 0

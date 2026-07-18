@@ -338,6 +338,15 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Perform diagnostic quality audits on the knowledge store.")
     au.add_argument("--store", default="store", help="Path to knowledge store (default: store).")
 
+    qg = sub.add_parser("query-graph",
+                        help="Run interactive or one-shot Graph-RAG queries over the graph store.")
+    qg.add_argument("query", help="The natural-language question or key terms to retrieve paths for.")
+    qg.add_argument("--graph-db", default="graph_db", help="Path to Kùzu graph database (default: graph_db).")
+    qg.add_argument("--top-k", type=int, default=5, help="Number of seed facts to retrieve (default: 5).")
+    qg.add_argument("--hops", type=int, default=2, help="Max hops to traverse (default: 2).")
+    qg.add_argument("--format", choices=["markdown", "json"], default="markdown",
+                    help="Output format to print (default: markdown).")
+
     res = sub.add_parser("resolve-entities",
                          help="Perform entity resolution and merge synonym nodes in the Kùzu graph.")
     res.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
@@ -1015,6 +1024,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_compile_graph_instructions(args)
     if args.command == "distill-ontology":
         return _cmd_distill_ontology(args)
+    if args.command == "query-graph":
+        return _cmd_query_graph(args)
     parser.print_help()
     return 1
 
@@ -1440,6 +1451,51 @@ def _cmd_distill_ontology(args) -> int:
         print(f"  - Categorized {len(semantic_types)} concepts.")
         print(f"  - Inferred {len(schema)} schema relationships.")
         print(f"  - Summary saved to: {args.output}")
+    finally:
+        kstore.close()
+    return 0
+
+
+def _cmd_query_graph(args) -> int:
+    """Run Graph-RAG retrieval over the store and print a premium styled output."""
+    import sys
+    import json
+    try:
+        from .graph_store_factory import get_graph_store
+        from .rag import GraphRAGRetriever
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    kstore = get_graph_store(args.graph_db)
+    try:
+        retriever = GraphRAGRetriever(store=kstore)
+        results = retriever.retrieve(args.query, top_k=args.top_k, hops=args.hops)
+        
+        if args.format == "json":
+            print(json.dumps(results, indent=2))
+        else:
+            # Color-coded Markdown rendering in terminal
+            print("\033[1;33m" + "=" * 60 + "\033[0m")
+            print(f"\033[1;36m🔍 Graph-RAG Multi-Hop Path Retrieval\033[0m")
+            print(f"\033[1;30mQuery:\033[0m \"{args.query}\"")
+            print("\033[1;33m" + "=" * 60 + "\033[0m")
+            
+            if not results:
+                print("\033[1;31mNo matching facts found in the knowledge graph.\033[0m")
+                return 0
+                
+            print(f"\033[1;32mFound {len(results)} relevant facts:\033[0m")
+            for idx, r in enumerate(results, 1):
+                reliability = r.get("reliability", "UNVERIFIED")
+                color = "\033[1;32m" if reliability == "VERIFIED" else "\033[1;34m"
+                print(f"  \033[1;35m{idx}.\033[0m \033[1m{r['subject']}\033[0m {r['predicate']} \033[1m{r['object']}\033[0m")
+                print(f"     \033[3m\"{r['statement']}\"\033[0m (Reliability: {color}{reliability}\033[0m)")
+                
+            print("\033[1;33m" + "-" * 60 + "\033[0m")
+            print("\033[1;36mCompiled LLM Prompt Context:\033[0m")
+            print(retriever.format_context(args.query, top_k=args.top_k, hops=args.hops))
+            print("\033[1;33m" + "=" * 60 + "\033[0m")
     finally:
         kstore.close()
     return 0
