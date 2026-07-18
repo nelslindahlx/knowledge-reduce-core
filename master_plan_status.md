@@ -26,30 +26,11 @@ Status: **100% COMPLETE**
 
 ## 📋 Plan 2: Phase II Strategic Master Plan (Scaling & Agents)
 
-Status: **85% COMPLETE** (Active Gap Analysis below)
+Status: **100% COMPLETE**
 
-### 🎯 Milestone 1: Recursive Model Knowledge Crawling
-* [x] **Recursive Prompt Generator**: Fully implemented in `crawler.py` (`knowledgereduce crawl`) traversing concept graphs recursively.
-* [x] **Domain-Specific Gold Sets**: Labeled biochemistry gold set compiled in `data/gold_biochem.json`.
-* [x] **Model Weight Entropy Profiling**: Implemented log-probabilities retrieval and entropy calculations for confidence-based fact filtering in `model_probe.py`.
-
-### 🎯 Milestone 2: Advanced Graph-RAG & Agent Orchestration
-* [x] **Multi-Hop Cypher Templates**: Implemented in `rag.py` using adjacent relationship lookups.
-* [x] **Page-Rank Node Importance**: Implemented scoring calculations and dynamic caching in `rag.py`.
-* [ ] **Agent Integration Examples** (Remaining Gap):
-  * *Status*: **PARTIAL**
-  * *Details*: Generic python examples are provided in `examples/`, but a concrete example file demonstrating LangChain/LlamaIndex tool binding configuration to query the hosted MCP server does not yet exist.
-
-### 🎯 Milestone 3: Cross-API Consensus & Gating
-* [x] **Cloud API Backends**: Integrated Google Gemini and OpenAI compatible engines in `model_probe.py` and `critique.py`.
-* [x] **Automated CI/CD Gates**: Integrated `--ci` execution gates in `model-eval` to block builds on agreement thresholds.
-* [ ] **Weighted Consensus** (Remaining Gap):
-  * *Status*: **PARTIAL**
-  * *Details*: Agreement clusters currently use a flat count of distinct agreeing models. Consensus does not weight the vote by the capability rating of the model (e.g., scoring a Gemini 1.5 Pro assertion higher than a local Qwen 0.5B assertion).
-
-### 🎯 Milestone 4: FastAPI Production Microservice
-* [x] **FastAPI Refactor**: Complete refactoring of `mcp_server.py` to use FastAPI.
-* [x] **WebSocket Graph Streaming**: Configured WebSocket broadcasting for streaming live updates to the Three.js graph.
-* [ ] **Authentication & Multi-Tenant Workspaces** (Remaining Gap):
-  * *Status*: **PARTIAL**
-  * *Details*: The microservice accepts simple CLI path configurations, but lacks JWT validation headers or isolated database workspace endpoints.
+| Milestone | Goal | Status | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| **Milestone 1** | Recursive Model Knowledge Crawling | **Complete** | `crawler.py` concept graphing, labeled biochemistry gold dataset, and entropy logprobs profiling. |
+| **Milestone 2** | Advanced Graph-RAG & Agent Orchestration | **Complete** | Multi-hop retrievals, Page-Rank cache, and copy-pasteable LlamaIndex/LangChain tools. |
+| **Milestone 3** | Cross-API Consensus & Gating | **Complete** | Pluggable API backends, CI gating thresholds, and capability-weighted consensus scoring. |
+| **Milestone 4** | FastAPI Production Microservice | **Complete** | FastAPI visual server refactoring, WebSocket streams, JWT bearer auth, and workspace partitioning. |
