@@ -176,6 +176,12 @@ def test_fastapi_endpoints():
         }
         response = client_secured.get("/api/graph", headers=headers_ws)
         assert response.status_code == 200
+
+        # 7. Test GET /api/rag_retrieve
+        response = client_secured.get("/api/rag_retrieve?query=mitochondria", headers=headers_ws)
+        assert response.status_code == 200
+        assert "context" in response.json()
+        assert "facts" in response.json()
     finally:
         del os.environ["MCP_JWT_SECRET"]
 

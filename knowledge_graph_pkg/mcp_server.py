@@ -423,6 +423,24 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <input type="text" class="search-input" id="search-box" placeholder="Search facts, subjects, domains...">
         </div>
 
+        <div class="panel-title">Graph-RAG Retriever</div>
+        <div style="padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.05);">
+            <input type="text" class="search-input" id="rag-query-box" placeholder="Ask the knowledge graph..." style="margin-bottom: 10px; width: 100%;">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <label style="font-size: 11px; color: var(--text-muted);">
+                    Hops: <select id="rag-hops" style="background: #1f2937; color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px;">
+                        <option value="1">1</option>
+                        <option value="2" selected>2</option>
+                        <option value="3">3</option>
+                    </select>
+                </label>
+                <label style="font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+                    <input type="checkbox" id="rag-exclude-unverified" checked style="accent-color: #3b82f6;"> Exclude Unverified
+                </label>
+            </div>
+            <button class="cypher-btn" id="rag-run-btn" style="width: 100%; background: linear-gradient(135deg, #8b5cf6, #3b82f6); border: none;">Retrieve RAG Context</button>
+        </div>
+
         <div class="panel-title">Selected Fact Details</div>
         <div class="detail-card" id="detail-card">
             <div style="text-align: center; color: var(--text-muted); margin-top: 40%; font-size: 13px;">
@@ -470,6 +488,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         let Graph = null;
         let allNodes = [];
         let allEdges = [];
+        let highlightedNodes = new Set();
+        let highlightedLinks = new Set();
 
         // Color coding for reliability
         const reliabilityColors = {
@@ -576,13 +596,33 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
             const container = document.getElementById('mynetwork');
             container.innerHTML = '';
-            
             Graph = ForceGraph3D()(container)
                 .graphData({ nodes: visNodes, links: visLinks })
-                .nodeColor(node => node.color)
+                .nodeColor(node => {
+                    if (highlightedNodes.size > 0) {
+                        return highlightedNodes.has(node.id) ? '#fbbf24' : '#1f2937';
+                    }
+                    return node.color;
+                })
                 .nodeLabel(node => `<div class="node-tooltip"><b>${node.label}</b></div>`)
-                .nodeVal(node => node.val)
-                .linkColor(link => link.color)
+                .nodeVal(node => {
+                    if (highlightedNodes.size > 0) {
+                        return highlightedNodes.has(node.id) ? 25 : 8;
+                    }
+                    return node.val;
+                })
+                .linkColor(link => {
+                    if (highlightedLinks.size > 0) {
+                        return highlightedLinks.has(link.id) ? '#fbbf24' : '#1f2937';
+                    }
+                    return link.color;
+                })
+                .linkWidth(link => {
+                    if (highlightedLinks.size > 0) {
+                        return highlightedLinks.has(link.id) ? 4 : 1.5;
+                    }
+                    return 1.5;
+                })
                 .linkLabel(link => `<div class="link-tooltip"><b>${link.label}</b><br/>${link.fact.statement}</div>`)
                 .linkDirectionalArrowLength(4)
                 .linkDirectionalArrowRelPos(0.95)
@@ -769,6 +809,63 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 console.error("Cypher error:", err);
             }
         });
+
+        document.getElementById('rag-run-btn').addEventListener('click', async () => {
+            const query = document.getElementById('rag-query-box').value.trim();
+            if (!query) {
+                highlightedNodes.clear();
+                highlightedLinks.clear();
+                Graph.nodeColor(node => node.color);
+                Graph.linkColor(link => link.color);
+                Graph.linkWidth(1.5);
+                Graph.nodeVal(node => node.val);
+                return;
+            }
+            
+            const hops = document.getElementById('rag-hops').value;
+            const excludeUnverified = document.getElementById('rag-exclude-unverified').checked;
+            
+            try {
+                const response = await fetch(`/api/rag_retrieve?query=${encodeURIComponent(query)}&hops=${hops}&exclude_unverified=${excludeUnverified}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('RAG query failed');
+                const data = await response.json();
+                
+                highlightedNodes.clear();
+                highlightedLinks.clear();
+                
+                (data.facts || []).forEach(f => {
+                    if (f.subject) highlightedNodes.add('concept_' + f.subject.trim().toLowerCase());
+                    if (f.object) highlightedNodes.add('concept_' + f.object.trim().toLowerCase());
+                    highlightedLinks.add('fact_' + f.block_id);
+                });
+                
+                Graph.nodeColor(Graph.nodeColor());
+                Graph.linkColor(Graph.linkColor());
+                Graph.linkWidth(Graph.linkWidth());
+                Graph.nodeVal(Graph.nodeVal());
+                
+                const resultPanel = document.getElementById('result-panel');
+                document.getElementById('result-title').innerText = `Graph-RAG Context: "${query}"`;
+                const container = document.getElementById('table-container');
+                container.innerHTML = `
+                    <div style="padding: 15px; color: #f3f4f6; font-family: monospace; white-space: pre-wrap; font-size: 12px; background: rgba(0,0,0,0.2); border-radius: 6px; line-height: 1.5;">${escapeHtml(data.context)}</div>
+                `;
+                resultPanel.style.display = 'block';
+            } catch (err) {
+                alert('Error running Graph-RAG: ' + err.message);
+            }
+        });
+        
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
 
         function setupWebSocket() {
             try {
@@ -1004,6 +1101,23 @@ def make_fastapi_app(tools: Any) -> Any:
                 enriched_nodes.append(node_copy)
                 
             return {"nodes": enriched_nodes, "edges": edges}
+        except Exception as exc:
+            return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+    @app.get("/api/rag_retrieve", dependencies=[Depends(verify_token)])
+    async def api_rag_retrieve(query: str, request: Request, hops: int = 2, exclude_unverified: bool = True):
+        try:
+            workspace_id = get_workspace_id(request)
+            ws_tools = get_tools_for_workspace(workspace_id)
+            from .rag import GraphRAGRetriever
+            retriever = GraphRAGRetriever(ws_tools.store)
+            retrieved_facts = retriever.retrieve(query, hops=hops, exclude_unverified=exclude_unverified)
+            formatted_context = retriever.format_context(query, hops=hops)
+            return {
+                "facts": retrieved_facts,
+                "context": formatted_context
+            }
         except Exception as exc:
             return JSONResponse(status_code=500, content={"error": str(exc)})
 

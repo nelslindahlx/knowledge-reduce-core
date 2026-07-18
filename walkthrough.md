@@ -125,6 +125,14 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🔍 Interactive Graph-RAG Path Highlighting
+
+* **RAG Search Box**: Embedded an interactive RAG query input field directly within the dashboard sidebar.
+* **Real-time 3D Highlight Triggers**: When a user queries the graph, the client calls `/api/rag_retrieve`, isolates the exact multi-hop nodes and relationship edges loaded into the context, and highlights them in glowing gold/amber while temporarily dimming all other concept nodes.
+* **Prompt Preview Panel**: Displays the final formatted instruction context side-by-side with the visual path highlight, giving developers a complete view of Graph-RAG prompt compilation.
+
+---
+
 ## 🧪 Verification Results
 
 * **Execution Status**: **ALL 323 TEST CASES PASSED SUCCESSFULLY (100% green)**
