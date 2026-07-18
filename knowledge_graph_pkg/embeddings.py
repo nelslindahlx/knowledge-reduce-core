@@ -136,3 +136,73 @@ def get_embedder(embedder_type: str, model: Optional[str] = None, **kwargs) -> A
         )
     else:
         raise ValueError(f"Unknown embedder type: {embedder_type}")
+
+
+class VectorIndex:
+    """NumPy-vectorized similarity search index for fast cosine matching."""
+
+    def __init__(self):
+        import numpy as np
+        self._np = np
+        self.ids: List[str] = []
+        self.vectors: List[List[float]] = []
+        self._matrix = None
+        self._norms = None
+
+    def add_vector(self, vector_id: str, vector: List[float]) -> None:
+        """Add a vector to the index. Invalidates built matrix."""
+        if vector_id in self.ids:
+            idx = self.ids.index(vector_id)
+            self.vectors[idx] = vector
+        else:
+            self.ids.append(vector_id)
+            self.vectors.append(vector)
+        self._matrix = None
+        self._norms = None
+
+    def remove_vector(self, vector_id: str) -> None:
+        """Remove a vector from the index by ID."""
+        if vector_id in self.ids:
+            idx = self.ids.index(vector_id)
+            self.ids.pop(idx)
+            self.vectors.pop(idx)
+            self._matrix = None
+            self._norms = None
+
+    def _build(self) -> None:
+        """Construct/cache the numpy matrix and precompute L2 norms."""
+        if not self.vectors:
+            self._matrix = self._np.zeros((0, 0))
+            self._norms = self._np.zeros((0,))
+            return
+        self._matrix = self._np.array(self.vectors, dtype=self._np.float32)
+        self._norms = self._np.linalg.norm(self._matrix, axis=1)
+        self._norms[self._norms == 0.0] = 1.0
+
+    def query(self, query_vector: List[float], top_k: int = 5) -> List[tuple]:
+        """Search the index for the most similar vectors.
+
+        Returns:
+            List of (vector_id, similarity_score) sorted descending.
+        """
+        if not self.vectors:
+            return []
+        
+        if self._matrix is None:
+            self._build()
+
+        np = self._np
+        q = np.array(query_vector, dtype=np.float32)
+        q_norm = np.linalg.norm(q)
+        if q_norm == 0.0:
+            return [(vid, 0.0) for vid in self.ids[:top_k]]
+
+        dot_products = np.dot(self._matrix, q)
+        similarities = dot_products / (self._norms * q_norm)
+        sorted_indices = np.argsort(similarities)[::-1]
+        
+        results = []
+        for idx in sorted_indices[:top_k]:
+            results.append((self.ids[idx], float(similarities[idx])))
+        return results
+

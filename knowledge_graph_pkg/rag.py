@@ -36,15 +36,19 @@ class GraphRAGRetriever:
         # If embedder is active, rank by cosine similarity
         if self.embedder:
             try:
+                from .embeddings import VectorIndex
                 query_vec = self.embedder.embed_one(query)
-                scored = []
+                index = VectorIndex()
+                fact_map = {}
                 for f in facts:
+                    bid = f["block_id"]
                     stmt = f.get("statement", "")
                     stmt_vec = self.embedder.embed_one(stmt)
-                    sim = cosine_similarity(query_vec, stmt_vec)
-                    scored.append((sim, f))
-                scored.sort(key=lambda x: x[0], reverse=True)
-                return [item[1] for item in scored[:limit]]
+                    index.add_vector(bid, stmt_vec)
+                    fact_map[bid] = f
+                
+                results = index.query(query_vec, top_k=limit)
+                return [fact_map[bid] for bid, _ in results]
             except Exception as exc:
                 print(f"[RAG] Embedding similarity calculation failed: {exc}. Falling back to keyword match.")
 

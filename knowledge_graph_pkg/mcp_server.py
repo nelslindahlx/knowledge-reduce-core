@@ -54,7 +54,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <meta charset="utf-8">
     <title>KnowledgeReduce - Interactive Visual Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Mono&display=swap" rel="stylesheet">
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://unpkg.com/3d-force-graph"></script>
     <style>
         :root {
             --bg-primary: #0b0f19;
@@ -394,6 +394,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             background: rgba(255, 255, 255, 0.15);
             border-radius: 3px;
         }
+        .node-tooltip, .link-tooltip {
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: #f3f4f6;
+            font-size: 12px;
+            font-family: 'Outfit', sans-serif;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+        }
+        .node-tooltip b, .link-tooltip b {
+            color: var(--accent-cyan);
+        }
     </style>
 </head>
 <body>
@@ -452,11 +467,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
 
     <script type="text/javascript">
-        let network = null;
+        let Graph = null;
         let allNodes = [];
         let allEdges = [];
-        let nodesDataset = new vis.DataSet();
-        let edgesDataset = new vis.DataSet();
 
         // Color coding for reliability
         const reliabilityColors = {
@@ -495,7 +508,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
         function renderNetwork(nodes, edges) {
             const visNodes = [];
-            const visEdges = [];
+            const visLinks = [];
             const subjectsAndObjects = new Map();
 
             nodes.forEach(f => {
@@ -517,15 +530,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 visNodes.push({
                     id: concept.id,
                     label: concept.label,
-                    shape: 'dot',
-                    size: 15,
-                    font: { color: '#f3f4f6', size: 14, face: 'Outfit' },
-                    color: {
-                        background: '#1f2937',
-                        border: '#06b6d4',
-                        highlight: { background: '#06b6d4', border: '#06b6d4' }
-                    },
-                    borderWidth: 2
+                    color: '#06b6d4',
+                    val: 15
                 });
             });
 
@@ -535,68 +541,50 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     const toId = 'concept_' + f.object.trim().toLowerCase();
                     const relColor = reliabilityColors[f.reliability] || '#9ca3af';
                     
-                    visEdges.push({
+                    visLinks.push({
                         id: 'fact_' + f.block_id,
-                        from: fromId,
-                        to: toId,
-                        label: f.predicate,
-                        color: { color: relColor, highlight: '#9333ea' },
-                        font: { align: 'middle', size: 10, face: 'Outfit', color: '#9ca3af' },
-                        arrows: 'to',
-                        width: 2,
-                        smooth: { type: 'curvedCW', roundness: 0.15 }
+                        source: fromId,
+                        target: toId,
+                        label: `${f.predicate} (${f.reliability})`,
+                        color: relColor,
+                        fact: f
                     });
                 }
             });
 
-            nodesDataset.clear();
-            edgesDataset.clear();
-            nodesDataset.add(visNodes);
-            edgesDataset.add(visEdges);
-
             const container = document.getElementById('mynetwork');
-            const data = { nodes: nodesDataset, edges: edgesDataset };
+            container.innerHTML = '';
             
-            const options = {
-                physics: {
-                    solver: 'forceAtlas2Based',
-                    forceAtlas2Based: {
-                        gravitationalConstant: -50,
-                        centralGravity: 0.01,
-                        springLength: 100,
-                        springConstant: 0.08
-                    },
-                    stabilization: { iterations: 150 }
-                },
-                interaction: { hover: true, selectConnectedEdges: true }
-            };
-            
-            network = new vis.Network(container, data, options);
-
-            network.on("selectEdge", function(params) {
-                if (params.edges.length === 1) {
-                    const edgeId = params.edges[0];
-                    if (edgeId.startsWith('fact_')) {
-                        const blockId = edgeId.replace('fact_', '');
-                        const fact = nodes.find(n => n.block_id === blockId);
-                        if (fact) {
-                            showFactDetails(fact);
-                        }
-                    }
-                }
-            });
-
-            network.on("selectNode", function(params) {
-                if (params.nodes.length === 1) {
-                    const nodeId = params.nodes[0];
-                    const conceptName = nodeId.replace('concept_', '');
+            Graph = ForceGraph3D()(container)
+                .graphData({ nodes: visNodes, links: visLinks })
+                .nodeColor(node => node.color)
+                .nodeLabel(node => `<div class="node-tooltip"><b>${node.label}</b></div>`)
+                .nodeVal(node => node.val)
+                .linkColor(link => link.color)
+                .linkLabel(link => `<div class="link-tooltip"><b>${link.label}</b><br/>${link.fact.statement}</div>`)
+                .linkDirectionalArrowLength(4)
+                .linkDirectionalArrowRelPos(0.95)
+                .linkCurvature(0.15)
+                .backgroundColor('#0b0f19')
+                .onNodeClick(node => {
+                    const distance = 80;
+                    const distRatio = 1 + distance/Math.hypot(node.x, node.y, node.z);
+                    Graph.cameraPosition(
+                        { x: node.x * distRatio, y: node.y * distRatio, z: node.z * distRatio },
+                        node,
+                        1500
+                    );
+                    
+                    const conceptName = node.id.replace('concept_', '');
                     const relatedFacts = nodes.filter(n => 
                         (n.subject && n.subject.trim().toLowerCase() === conceptName) ||
                         (n.object && n.object.trim().toLowerCase() === conceptName)
                     );
                     showConceptDetails(conceptName, relatedFacts);
-                }
-            });
+                })
+                .onLinkClick(link => {
+                    showFactDetails(link.fact);
+                });
         }
 
         function showFactDetails(fact) {
@@ -788,8 +776,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                             updateStats(allNodes);
                         } else if (update.type === 'prune_fact') {
                             const blockId = update.block_id;
-                            edgesDataset.remove('fact_' + blockId);
                             allNodes = allNodes.filter(n => n.block_id !== blockId);
+                            renderNetwork(allNodes, allEdges);
                             updateStats(allNodes);
                         }
                     } catch (e) {
