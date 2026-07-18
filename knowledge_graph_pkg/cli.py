@@ -245,6 +245,28 @@ def _build_parser() -> argparse.ArgumentParser:
                     default="likely_true", help="Min reliability threshold (default: likely_true).")
     wd.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
 
+    co = sub.add_parser("consensus",
+                        help="Ingest a document using multiple engines, load into graph, and reconcile contradictions.")
+    co.add_argument("input", help="Input file path (txt, md, html, pdf).")
+    co.add_argument("--engines", nargs="+", default=["svo"], choices=["svo", "spacy"],
+                    help="List of extraction engines to run (choices: svo, spacy).")
+    co.add_argument("--store", default="store", help="Knowledge store directory (default: store).")
+    co.add_argument("--graph-db", default="graph_db", help="KùzuDB path (default: graph_db).")
+    co.add_argument("--coref", action="store_true", help="Enable pronoun coreference resolution.")
+    co.add_argument("--min-reliability", choices=["verified", "likely_true", "possibly_true", "unverified"],
+                    default="likely_true", help="Min reliability threshold (default: likely_true).")
+    co.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
+
+    tr = sub.add_parser("train",
+                        help="Perform local LoRA fine-tuning on Apple Silicon via mlx-lm.")
+    tr.add_argument("--model", required=True, help="Path to local MLX model or Hugging Face repo.")
+    tr.add_argument("--data", default="data/train", help="Directory with train.jsonl and valid.jsonl (default: data/train).")
+    tr.add_argument("--adapter-path", default="adapters", help="Output directory for adapters (default: adapters).")
+    tr.add_argument("--iters", type=int, default=100, help="Number of training iterations (default: 100).")
+    tr.add_argument("--batch-size", type=int, default=4, help="Batch size (default: 4).")
+    tr.add_argument("--lr", type=float, default=1e-5, help="Learning rate (default: 1e-5).")
+    tr.add_argument("--num-layers", type=int, default=16, help="Number of layers to fine-tune (default: 16).")
+
     sm = sub.add_parser("serve-mcp",
                         help="Serve the graph as LLM-callable tools over HTTP+JSON.")
     sm.add_argument("--graph-db", default="graph_db", help="KùzuDB path (default graph_db).")
@@ -917,6 +939,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_graph_reason(args)
     if args.command == "watch-daemon":
         return _cmd_watch_daemon(args)
+    if args.command == "consensus":
+        return _cmd_consensus(args)
+    if args.command == "train":
+        return _cmd_train(args)
     parser.print_help()
     return 1
 
@@ -984,6 +1010,65 @@ def _cmd_watch_daemon(args) -> int:
         watcher.run()
     except KeyboardInterrupt:
         print("\nWatcher daemon stopped.")
+    return 0
+
+
+def _cmd_consensus(args) -> int:
+    """Run extraction with multiple engines and validate consistency."""
+    import os
+    if not os.path.isfile(args.input):
+        print(f"error: input file not found: {args.input}", file=sys.stderr)
+        return 2
+
+    try:
+        from .consensus import ConsensusEngine
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    engine = ConsensusEngine(store_dir=args.store, graph_db_path=args.graph_db)
+    try:
+        result = engine.process_with_consensus(
+            file_path=args.input,
+            engines=args.engines,
+            reliability=args.min_reliability,
+            filter_name=args.filter,
+            coref=args.coref
+        )
+        demoted = result.get("demoted", [])
+        if demoted:
+            print(f"Consensus reconciliation complete: demoted {len(demoted)} conflicting facts to UNVERIFIED.")
+        else:
+            print("Consensus reconciliation complete: no conflicts detected.")
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+    return 0
+
+
+def _cmd_train(args) -> int:
+    """Run local LoRA training via mlx-lm."""
+    try:
+        from .train import MLXTrainer
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    trainer = MLXTrainer(
+        model_path=args.model,
+        data_dir=args.data,
+        adapter_path=args.adapter_path
+    )
+    try:
+        trainer.train_lora(
+            iters=args.iters,
+            batch_size=args.batch_size,
+            lr=args.lr,
+            num_layers=args.num_layers
+        )
+    except Exception as exc:
+        print(f"error during training: {exc}", file=sys.stderr)
+        return 4
     return 0
 
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=KnowledgeReduce Real-Time Ingestion Watcher Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=nelslindahl
+WorkingDirectory=/Users/nelslindahl
+ExecStart=/usr/local/bin/knowledgereduce watch-daemon --dir /Users/nelslindahl/knowledgereduce_watch --store /Users/nelslindahl/knowledgereduce_store --db-log /Users/nelslindahl/knowledgereduce_watcher.db
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
