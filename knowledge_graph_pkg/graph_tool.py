@@ -66,6 +66,16 @@ class GraphTools:
             exclude_unverified=exclude_unverified
         )
 
+    def graph_distill_ontology(self) -> Dict[str, Any]:
+        """Distill the high-level taxonomy, semantic categories, and relation schema from the graph."""
+        from .ontology import OntologyDistiller
+        distiller = OntologyDistiller(self.store)
+        return {
+            "taxonomy": distiller.distill_taxonomy(),
+            "semantic_types": distiller.infer_semantic_types(),
+            "relation_schema": distiller.infer_relation_schema()
+        }
+
 
 # JSON-schema tool definitions for LLM function-calling / MCP registration.
 TOOL_SCHEMAS = [
@@ -119,6 +129,14 @@ TOOL_SCHEMAS = [
                 "exclude_unverified": {"type": "boolean", "description": "Exclude UNVERIFIED/contradicted facts (default: true)."}
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "graph_distill_ontology",
+        "description": "Distill the high-level taxonomy, semantic categories, and relation schema from the graph.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
         }
     }
 ]

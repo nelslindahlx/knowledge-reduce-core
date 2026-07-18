@@ -193,4 +193,24 @@ class TestGraphRAGRetriever(unittest.TestCase):
         self.assertIn("b1", bids)
         self.assertNotIn("b2", bids)
 
+    def test_graph_distill_ontology_tool(self):
+        from knowledge_graph_pkg.graph_tool import GraphTools, TOOL_SCHEMAS
+        
+        mock_store = MagicMock()
+        mock_store.query.return_value = [
+            {"subject": "ATP", "predicate": "is a type of", "object": "ChemicalCompound",
+             "child": "ATP", "parent": "ChemicalCompound"}
+        ]
+        
+        tools = GraphTools(store=mock_store)
+        res = tools.graph_distill_ontology()
+        
+        self.assertIn("taxonomy", res)
+        self.assertIn("ChemicalCompound", res["taxonomy"])
+        self.assertIn("ATP", res["taxonomy"]["ChemicalCompound"])
+        
+        # Verify schema is in TOOL_SCHEMAS
+        tool_names = [t["name"] for t in TOOL_SCHEMAS]
+        self.assertIn("graph_distill_ontology", tool_names)
+
 
