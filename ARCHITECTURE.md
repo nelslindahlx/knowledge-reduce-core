@@ -25,7 +25,7 @@ graph TD
         SVO -->|Facts + Ratings| Graph[KnowledgeGraph Core]
         NLP -->|Facts + Ratings| Graph
         Graph -->|LRU Cache / Sharding| Cache[Graph Store]
-        Graph -->|Cypher Queries| Kuzu[Kùzu DB Graph Database]
+        Graph -->|Cypher Queries| DB[Pluggable DB: Kùzu / Neo4j]
     end
 
     subgraph ModelReduce [ModelReduce Refinery]
@@ -68,14 +68,17 @@ graph TD
 │   ├── distillation.py         # Fact filtering, deduplication, and token ranking
 │   ├── distillation_io.py      # File export formatting (chat, instruction, plain text)
 │   ├── factory.py              # Durable drop, catalog, and compilation pipeline
-│   ├── kuzu_store.py           # Kùzu graph database connector
+│   ├── graph_store_base.py     # BaseGraphStore abstract class for database-agnostic operations
+│   ├── graph_store_factory.py  # get_graph_store factory mapping connection strings
+│   ├── kuzu_store.py           # Kùzu graph database connector (inherits from BaseGraphStore)
+│   ├── neo4j_store.py          # Neo4j server graph database connector (inherits from BaseGraphStore)
 │   ├── graph_tool.py           # NetworkX graph manipulation and visualization helpers
-│   ├── mcp_server.py           # Model Context Protocol JSON-RPC tool server
-│   ├── model_probe.py          # Probing fleet (Ollama backend)
+│   ├── mcp_server.py           # MCP JSON-RPC tool server & 3D WebGL Dashboard
+│   ├── model_probe.py          # Probing fleet (Ollama/Gemini/vLLM backends)
 │   ├── probe_templates.py      # Domain-parameterized schemas and prompts
 │   ├── model_drop.py           # Immutable model drops (shards)
-│   ├── cross_model.py          # Cross-model agreement and semantic clustering
-│   ├── embeddings.py           # Vector embedding wrappers (mxbai-embed-large)
+│   ├── cross_model.py          # Cross-model agreement and clustering
+│   ├── embeddings.py           # Vector embedding wrappers & NumPy VectorIndex
 │   ├── model_distill.py        # Agreement-based shard distillation
 │   ├── model_eval.py           # Gold set validation and quality gating
 │   ├── training_prep.py        # Token budget and training format preparation
@@ -83,7 +86,7 @@ graph TD
 ├── scripts/
 │   ├── run_suite.py            # Sequential stage-based test runner script
 │   └── train_sft.py            # SFT LoRA training execution script (dry-run mode)
-└── tests/                      # Reorganized test suite (30 test files)
+└── tests/                      # Reorganized test suite (41 test files)
 ```
 
 ---

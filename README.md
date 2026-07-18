@@ -478,7 +478,7 @@ Serve LLM-callable tools and a visual dark-mode graph dashboard:
 knowledgereduce serve-mcp --graph-db graph_db --host 127.0.0.1 --port 8080
 ```
 Open `http://localhost:8080/` in any browser to interact with:
-* A physics-simulated network graph using `vis-network`.
+* An interactive, floating 3D WebGL physics-simulated network graph using `3d-force-graph`.
 * Live statistic charts (total facts, domains, avg agreement).
 * Concept fact details inspection cards.
 * A live Cypher query runner console to execute custom queries and view results in dynamic tables.
@@ -507,10 +507,15 @@ knowledgereduce train --model mlx-community/Qwen2.5-3B-Instruct-4bit --data data
 ### 🔍 Graph-RAG Hybrid Retriever
 Perform hybrid vector/keyword retrieval with adjacent Cypher path traversal from Python:
 ```python
-from knowledge_graph_pkg.kuzu_store import KuzuStore
+from knowledge_graph_pkg.graph_store_factory import get_graph_store
 from knowledge_graph_pkg.rag import GraphRAGRetriever
 
-kstore = KuzuStore("graph_db")
+# Local KuzuDB database:
+kstore = get_graph_store("graph_db")
+
+# Cloud Neo4j instance:
+# kstore = get_graph_store("neo4j://localhost:7687")
+
 retriever = GraphRAGRetriever(store=kstore, embedder_type="sentence-transformers")
 
 # Format retrieved path contexts directly for injection into LLM prompts
@@ -546,7 +551,7 @@ knowledgereduce compile-sft -o dataset.jsonl --format sharegpt --graph-db graph_
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install networkx numpy requests beautifulsoup4 matplotlib pytest
-python -m pytest -q          # 40 tests
+pytest --cov=knowledge_graph_pkg tests/    # 303 tests
 ```
 
 ## Examples
