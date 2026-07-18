@@ -84,6 +84,20 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## ⚡ Real-Time Active Watcher Graph Ingestion (`watch-daemon --graph-db`)
+
+* **Module**: [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py).
+* **Behavior**: Triggers automatic graph ingestion, concept linking, entity merging, and conflict resolution in real-time when new documents are dropped into the watched directory.
+
+---
+
+## ⚖️ Contradiction Evaluation & Filtering Compiler (`compile-graph-instructions --include-contradictions`)
+
+* **Unverified Fact Filtering**: Hardened `compile_subgraph_instructions()` to filter out `UNVERIFIED` nodes, preventing the propagation of contradicted claims to standard relationship reasoning chains.
+* **Contradiction Resolution Generation**: Implemented a new compilation target (`compile_contradiction_instructions()`) that discovers conflicting assertions (same subject/object, different predicates) and synthesizes source evaluation instructions. This teaches the fine-tuned LLM how to rank conflicting facts based on source model agreement counts and reliability ratings.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 317 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 320 TEST CASES PASSED SUCCESSFULLY (100% green)**

@@ -349,6 +349,8 @@ def _build_parser() -> argparse.ArgumentParser:
     cg.add_argument("-o", "--output", required=True, help="Output JSONL instruction file path.")
     cg.add_argument("--max-chains", type=int, default=100,
                      help="Maximum number of relationship chains to compile (default: 100).")
+    cg.add_argument("--include-contradictions", action="store_true",
+                     help="Compile contradiction resolution instruction pairs alongside path walks.")
 
     return parser
 
@@ -1382,9 +1384,16 @@ def _cmd_compile_graph_instructions(args) -> int:
 
     kstore = get_graph_store(args.graph_db)
     try:
+        from .graph_compiler import compile_contradiction_instructions
+        
         instructions = compile_subgraph_instructions(kstore, max_chains=args.max_chains)
+        if args.include_contradictions:
+            contra_instructions = compile_contradiction_instructions(kstore)
+            instructions.extend(contra_instructions)
+            print(f"Added {len(contra_instructions)} contradiction resolution instruction(s).")
+            
         save_compiled_instructions(instructions, args.output)
-        print(f"Successfully compiled {len(instructions)} graph-walk instructions to {args.output}")
+        print(f"Successfully compiled {len(instructions)} total instructions to {args.output}")
     finally:
         kstore.close()
     return 0

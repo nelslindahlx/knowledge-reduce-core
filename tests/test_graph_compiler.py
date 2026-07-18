@@ -116,3 +116,81 @@ class TestGraphCompilerAndResolution(unittest.TestCase):
         data = json.loads(lines[0])
         self.assertIn("instruction", data)
         self.assertIn("response", data)
+
+    def test_unverified_filtering_in_subgraph_compilation(self):
+        # 1. Ingest overlapping facts where one is UNVERIFIED
+        facts = [
+            {
+                "subject": "Mitochondria",
+                "predicate": "produce",
+                "object": "ATP",
+                "fact_statement": "Mitochondria produce ATP.",
+                "domain": "biochemistry",
+                "reliability_rating": "VERIFIED",
+                "cross_model_agreement": 3,
+                "quality_score": 1,
+                "source_models": "gpt-4"
+            },
+            {
+                "subject": "ATP",
+                "predicate": "fuels",
+                "object": "cells",
+                "fact_statement": "ATP fuels cells.",
+                "domain": "biochemistry",
+                "reliability_rating": "UNVERIFIED",
+                "cross_model_agreement": 1,
+                "quality_score": 1,
+                "source_models": "gpt-4"
+            }
+        ]
+        self.store.ingest_facts(facts)
+        self.store.auto_link_relations()
+        
+        # 2. Compile instructions
+        instructions = compile_subgraph_instructions(self.store)
+        
+        # Since one of the path nodes is UNVERIFIED, zero instructions should be compiled
+        self.assertEqual(len(instructions), 0)
+
+    def test_contradiction_instruction_compiler(self):
+        from knowledge_graph_pkg.graph_compiler import compile_contradiction_instructions
+        
+        # Ingest two contradicting facts
+        facts = [
+            {
+                "subject": "Mitochondria",
+                "predicate": "produce",
+                "object": "ATP",
+                "fact_statement": "Mitochondria produce ATP.",
+                "domain": "biochemistry",
+                "reliability_rating": "VERIFIED",
+                "cross_model_agreement": 3,
+                "quality_score": 1,
+                "source_models": "gpt-4"
+            },
+            {
+                "subject": "Mitochondria",
+                "predicate": "do not produce",
+                "object": "ATP",
+                "fact_statement": "Mitochondria do not produce ATP.",
+                "domain": "biochemistry",
+                "reliability_rating": "UNVERIFIED",
+                "cross_model_agreement": 1,
+                "quality_score": 1,
+                "source_models": "gpt-4"
+            }
+        ]
+        self.store.ingest_facts(facts)
+        
+        # Compile contradiction instructions
+        instructions = compile_contradiction_instructions(self.store)
+        self.assertEqual(len(instructions), 1)
+        
+        # Verify the instruction is synthesized and prefers the VERIFIED one
+        self.assertIn("Evaluate the following two conflicting claims", instructions[0]["instruction"])
+        self.assertIn("produce ATP", instructions[0]["instruction"])
+        self.assertIn("do not produce ATP", instructions[0]["instruction"])
+        
+        # Since VERIFIED > UNVERIFIED, response should choose the first one
+        self.assertIn("Claim 1 ('Mitochondria produce ATP.') is more reliable", instructions[0]["response"])
+
