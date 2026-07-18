@@ -5,6 +5,13 @@ version: 0.3.0
 author: Nels Lindahl
 license: MIT
 platforms: [linux, macos, windows]
+category: software-development
+usage_hint: "Use local Python APIs and CLI subcommands first for offline distillation; fallback to `serve-mcp` HTTP endpoint only when external agents require live MCP network protocol interaction."
+required_environment_variables:
+  - OPENAI_API_KEY (optional, for openai-based critique)
+  - GEMINI_API_KEY (optional, for gemini-based critique)
+required_commands:
+  - python3
 metadata:
   hermes:
     tags: [knowledge-graph, distillation, nlp, training-data, fine-tuning, hermes]
