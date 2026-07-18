@@ -150,3 +150,10 @@ def test_fastapi_endpoints():
     assert response.status_code == 200
     assert response.json()["ok"] is True
 
+    # 5. Test DELETE /api/facts/{block_id}
+    response = client.delete("/api/facts/fact_to_prune")
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+    assert mock_store.query.called
+
+

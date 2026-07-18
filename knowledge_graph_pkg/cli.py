@@ -272,6 +272,23 @@ def _build_parser() -> argparse.ArgumentParser:
     cr.add_argument("--engine", choices=["svo", "spacy"], default="svo",
                     help="Extraction engine (default: svo).")
 
+    ct = sub.add_parser("critique",
+                        help="Audit and critique facts using a high-capability model backend to flag hallucinations.")
+    ct.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
+    ct.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini"], default="gemini",
+                    help="Critique backend (default: gemini).")
+    ct.add_argument("--model", default="gemini-1.5-flash", help="Critic model name.")
+    ct.add_argument("--store", default=None, help="Knowledge store directory (instead of graph-db).")
+
+    cs = sub.add_parser("compile-sft",
+                        help="Compile facts from KùzuDB or store into standard SFT instruction training formats.")
+    cs.add_argument("-o", "--output", required=True, help="Output JSONL/JSON file path.")
+    cs.add_argument("--store", default=None, help="Knowledge store directory to load facts from.")
+    cs.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database to load facts from.")
+    cs.add_argument("--format", choices=["alpaca", "sharegpt", "plain"], default="alpaca",
+                    help="SFT training format (default: alpaca).")
+
+
     tr = sub.add_parser("train",
                         help="Perform local LoRA fine-tuning on Apple Silicon via mlx-lm.")
     tr.add_argument("--model", required=True, help="Path to local MLX model or Hugging Face repo.")
@@ -960,6 +977,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_train(args)
     if args.command == "crawl":
         return _cmd_crawl(args)
+    if args.command == "critique":
+        return _cmd_critique(args)
+    if args.command == "compile-sft":
+        return _cmd_compile_sft(args)
     parser.print_help()
     return 1
 
@@ -1138,6 +1159,146 @@ def _cmd_crawl(args) -> int:
     except Exception as exc:
         print(f"error during crawl: {exc}", file=sys.stderr)
         return 5
+    return 0
+
+
+def _cmd_critique(args) -> int:
+    """Audit and critique facts using a high-capability model backend."""
+    import os
+    import sys
+    try:
+        from .critique import FactCritic
+        from .kuzu_store import KuzuStore
+        from .store import KnowledgeStore
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    # Load facts
+    facts = []
+    kstore = None
+    if args.store:
+        store = KnowledgeStore(args.store)
+        facts = list(store.iter_facts())
+        print(f"Loaded {len(facts)} facts from KnowledgeStore '{args.store}'.")
+    else:
+        kstore = KuzuStore(args.graph_db)
+        facts = kstore.query(
+            "MATCH (f:Fact) "
+            "RETURN f.block_id AS block_id, f.statement AS fact_statement, "
+            "f.subject AS subject, f.predicate AS predicate, f.object AS object"
+        )
+        print(f"Loaded {len(facts)} facts from Kùzu Graph Database '{args.graph_db}'.")
+
+    if not facts:
+        print("No facts found to critique.")
+        if kstore:
+            kstore.close()
+        return 0
+
+    print(f"Auditing facts using backend '{args.backend}' and model '{args.model}'...")
+    try:
+        critic = FactCritic(args.backend, model_name=args.model)
+        reports = critic.critique_facts(facts)
+    except Exception as exc:
+        print(f"error instantiating or running critic: {exc}", file=sys.stderr)
+        if kstore:
+            kstore.close()
+        return 4
+
+    flagged = [r for r in reports if not r["is_factual"]]
+    print(f"\nAudit Complete: Flagged {len(flagged)} / {len(reports)} facts as non-factual.")
+    for f in flagged:
+        print(f"  - Flagged: \"{f['statement']}\"")
+        print(f"    Reasoning: {f['reasoning']}")
+
+    if kstore and flagged:
+        print("\nUpdating Kùzu Graph Database with critic feedback...")
+        demote_count = 0
+        for f in flagged:
+            try:
+                kstore.query(
+                    "MATCH (fac:Fact) "
+                    "WHERE fac.block_id = $bid "
+                    "SET fac.reliability = 'UNVERIFIED', fac.quality = 0",
+                    {"bid": f["block_id"]}
+                )
+                demote_count += 1
+            except Exception as exc:
+                print(f"Failed to update fact {f['block_id']}: {exc}", file=sys.stderr)
+        print(f"Successfully demoted {demote_count} facts in the graph database.")
+
+    if kstore:
+        kstore.close()
+
+    return 0
+
+
+def _cmd_compile_sft(args) -> int:
+    """Compile facts into standard SFT instruction training formats."""
+    import os
+    import sys
+    try:
+        from .kuzu_store import KuzuStore
+        from .store import KnowledgeStore
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    facts = []
+    if args.store:
+        store = KnowledgeStore(args.store)
+        facts = list(store.iter_facts())
+    else:
+        kstore = KuzuStore(args.graph_db)
+        facts = kstore.query(
+            "MATCH (f:Fact) "
+            "RETURN f.statement AS fact_statement, f.subject AS subject"
+        )
+        kstore.close()
+
+    if not facts:
+        print("No facts found to compile.")
+        return 0
+
+    compiled = []
+    for f in facts:
+        statement = f.get("fact_statement") or f.get("statement") or ""
+        subj = f.get("subject") or "General"
+        if not statement:
+            continue
+            
+        if args.format == "alpaca":
+            compiled.append({
+                "instruction": f"State a verified fact about {subj}.",
+                "input": "",
+                "output": statement
+            })
+        elif args.format == "sharegpt":
+            compiled.append({
+                "conversations": [
+                    {"from": "human", "value": f"State a verified fact about {subj}."},
+                    {"from": "gpt", "value": statement}
+                ]
+            })
+        elif args.format == "plain":
+            compiled.append({
+                "text": statement
+            })
+
+    try:
+        import json
+        with open(args.output, "w", encoding="utf-8") as fh:
+            if args.output.endswith(".jsonl"):
+                for item in compiled:
+                    fh.write(json.dumps(item) + "\n")
+            else:
+                json.dump(compiled, fh, indent=2)
+        print(f"Successfully compiled {len(compiled)} facts into SFT format '{args.format}' at '{args.output}'.")
+    except Exception as exc:
+        print(f"error writing SFT dataset: {exc}", file=sys.stderr)
+        return 4
+
     return 0
 
 

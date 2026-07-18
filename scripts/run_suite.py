@@ -37,13 +37,13 @@ def classify_stages(all_files):
         "test_lifecycle.py", "test_training_prep.py", "test_export.py",
         "test_mcp_server.py", "test_reasoning.py", "test_watcher.py",
         "test_rag.py", "test_consensus.py", "test_train_wrapper.py",
-        "test_crawler.py"
+        "test_crawler.py", "test_compile_sft.py"
     }
     
     stage4_files = {
         "test_model_probe.py", "test_model_drop.py", "test_model_distill.py",
         "test_model_eval.py", "test_cross_model.py", "test_embeddings.py",
-        "test_cli.py", "test_graveyard.py"
+        "test_cli.py", "test_graveyard.py", "test_critique.py"
     }
 
     for filename, rel_path in all_files:

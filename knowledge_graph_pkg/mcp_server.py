@@ -201,6 +201,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         .badge-possibly { background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #f59e0b; }
         .badge-unverified { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #ef4444; }
 
+        .prune-btn {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .prune-btn:hover {
+            background: #ef4444;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+        }
+
+
         /* Cypher box */
         .cypher-area {
             background: rgba(0, 0, 0, 0.3);
@@ -616,6 +637,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                     <span class="detail-label">Source Models</span>
                     <span class="detail-value">${modelsList}</span>
                 </div>
+                <div class="detail-item" style="margin-top:16px;">
+                    <button class="prune-btn" onclick="pruneFact('${fact.block_id}')">Prune Fact</button>
+                </div>
             `;
         }
 
@@ -641,6 +665,28 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 </div>
             `;
         }
+
+        async function pruneFact(blockId) {
+            if (!confirm("Are you sure you want to prune this fact from the knowledge graph?")) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/facts/' + blockId, { method: 'DELETE' });
+                const resData = await response.json();
+                if (resData.ok) {
+                    edgesDataset.remove('fact_' + blockId);
+                    allNodes = allNodes.filter(n => n.block_id !== blockId);
+                    updateStats(allNodes);
+                    document.getElementById('detail-card').innerHTML = '<div style="color:var(--text-muted); font-size:14px; font-style:italic; text-align:center; margin-top:40px;">Fact pruned successfully. Select another fact or node to view details.</div>';
+                } else {
+                    alert("Error pruning fact: " + resData.error);
+                }
+            } catch (err) {
+                console.error("Pruning failed:", err);
+                alert("Pruning failed: " + err);
+            }
+        }
+
 
         document.getElementById('search-box').addEventListener('input', function(e) {
             const term = e.target.value.toLowerCase().trim();
@@ -739,6 +785,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                                 });
                             }
                             renderNetwork(allNodes, allEdges);
+                            updateStats(allNodes);
+                        } else if (update.type === 'prune_fact') {
+                            const blockId = update.block_id;
+                            edgesDataset.remove('fact_' + blockId);
+                            allNodes = allNodes.filter(n => n.block_id !== blockId);
                             updateStats(allNodes);
                         }
                     } catch (e) {
@@ -917,7 +968,31 @@ def make_fastapi_app(tools: Any) -> Any:
             
         return {"status": "broadcasted", "recipients": len(active_websockets)}
 
+    @app.delete("/api/facts/{block_id}")
+    async def delete_fact(block_id: str):
+        try:
+            if hasattr(tools, "store") and hasattr(tools.store, "query"):
+                tools.store.query("MATCH (f:Fact) WHERE f.block_id = $bid DETACH DELETE f", {"bid": block_id})
+            
+            # Broadcast the pruning event to active WebSocket visual clients
+            closed_sockets = set()
+            for ws in active_websockets:
+                try:
+                    await ws.send_json({
+                        "type": "prune_fact",
+                        "block_id": block_id
+                    })
+                except Exception:
+                    closed_sockets.add(ws)
+            for ws in closed_sockets:
+                active_websockets.discard(ws)
+                
+            return {"ok": True, "message": f"Fact {block_id} successfully pruned."}
+        except Exception as exc:
+            return JSONResponse(status_code=500, content={"error": str(exc)})
+
     return app
+
 
 
 def serve(store_path: str, host: str = "127.0.0.1", port: int = 8080) -> None:  # pragma: no cover
