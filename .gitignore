@@ -15,4 +15,7 @@ store/
 
 graph_db_*
 local_path
+*.db
+*.db-shm
+*.db-wal
 
