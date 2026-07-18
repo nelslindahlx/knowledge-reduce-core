@@ -1,10 +1,10 @@
 # Master Plan Status Audit & Gap Analysis
 
-This document provides a comprehensive audit of both the original **Strategic Improvement Master Plan** (6 Phases) and the **Phase II Strategic Master Plan** (4 Milestones), identifying what has been fully accomplished, what is partially addressed, and the remaining gaps.
+This document provides a comprehensive audit of both the **Strategic Improvement Master Plan** (11 Phases) and the **Phase II Strategic Master Plan** (4 Milestones), identifying what has been fully accomplished, what is partially addressed, and the remaining gaps.
 
 ---
 
-## 📋 Plan 1: Strategic Improvement Master Plan (Original)
+## 📋 Plan 1: Strategic Improvement Master Plan
 
 Status: **100% COMPLETE**
 
@@ -16,6 +16,11 @@ Status: **100% COMPLETE**
 | **Phase 4** | Lightweight Coref | **Complete** | Rule-based pronoun resolver in `coref.py` falling back cleanly if spaCy is absent. |
 | **Phase 5** | Interactive Visual Dashboard | **Complete** | FastAPI microservice serving dynamic 3D WebGL Force-Directed graphs. |
 | **Phase 6** | Real-Time Ingestion Daemon | **Complete** | Directory watcher background daemon (`watcher.py`) with SQLite logging. |
+| **Phase 7** | Store Audit + Critique Fallback | **Complete** | `audit-store` command and rule-based pronoun/length/redundancy heuristics. |
+| **Phase 8** | Hermes Hardening & Skill Packaging | **Complete** | Canonical `SKILL.md`, `skills.json` registry, and `mirror_skill.py`. |
+| **Phase 9** | Test Resilience & CI Hygiene | **Complete** | Pytest custom conftest skip configuration for optional dependencies. |
+| **Phase 10** | Hermes Actionable Tool Surface | **Complete** | Documented python API, CLI command schema surface, safety defaults, and prompt templates. |
+| **Phase 11** | Skill Packaging Completeness & CI Validation | **Complete** | Skill frontmatter validation checks, `smoke_skill.py` bootstrap, and GitHub Actions validation workflow. |
 
 ---
 
