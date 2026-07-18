@@ -439,6 +439,85 @@ training. The actual LoRA training run is documented in
 `docs/model_reduce_training.md` (it needs real GPU hardware and a
 gate-passing shard — by design, not run in CI).
 
+## Hardened Core Enhancements (knowledge-reduce-core)
+
+We have significantly upgraded the core codebase with production-ready features for multi-backend execution, active graph reasoning, glassmorphic visual network analysis, directory-watcher automation, consensus verification, and local training:
+
+### 🔌 Multi-Backend Probing & Offline Embeddings
+Probing backends are now fully pluggable. You can probe local GGUF models directly, or connect to remote/local OpenAI-compatible endpoints, using offline sentence-transformer vectors:
+```bash
+# Probe a local GGUF model via llama-cpp (enforces structured JSON schema)
+knowledgereduce model-probe --model models/mistral-7b.gguf --backend llama-cpp
+
+# Probe an OpenAI-compatible API or vLLM endpoint
+knowledgereduce model-probe --model qwen --backend openai
+
+# Ingest corroborative facts with offline sentence-transformers
+knowledgereduce graph-ingest --store store --graph-db graph_db --embedder sentence-transformers
+```
+
+### 🧠 Active Graph Reasoning & Verification
+Execute reasoning loops over the Kùzu Graph database to auto-link nodes, detect contradictions, infer transitive shortcuts, and validate reliability:
+```bash
+# Link matching subjects/objects into RELATED relationships
+knowledgereduce graph-reason --op link
+
+# Find contradictory assertions (X vs NOT X)
+knowledgereduce graph-reason --op contradictions
+
+# Extract transitive shortcut inferences (A -> B and B -> C implies A -> C)
+knowledgereduce graph-reason --op transitive
+
+# Reconcile contradictions, demoting lower-quality conflicting facts to UNVERIFIED
+knowledgereduce graph-reason --op validate
+```
+
+### 🎨 Glassmorphic Visual Dashboard
+Serve LLM-callable tools and a visual dark-mode graph dashboard:
+```bash
+knowledgereduce serve-mcp --graph-db graph_db --host 127.0.0.1 --port 8080
+```
+Open `http://localhost:8080/` in any browser to interact with:
+* A physics-simulated network graph using `vis-network`.
+* Live statistic charts (total facts, domains, avg agreement).
+* Concept fact details inspection cards.
+* A live Cypher query runner console to execute custom queries and view results in dynamic tables.
+
+### 📁 Real-Time Directory Watcher Daemon
+Daemonize the fact-ingestion pipeline to monitor a directory for new document files (`.txt`, `.md`, `.html`, `.pdf`) and automatically ingest them:
+```bash
+knowledgereduce watch-daemon --dir data/ingest_watch --store store
+```
+* **Startup Scan**: Automatically scans the folder on boot to ingest any document added while offline.
+* **Persistent Logs**: Maintains `watcher_state.db` SQLite database tracking file progress (`PROCESSED`, `SKIPPED`, `FAILED`).
+* **Service Deployment**: Plist and systemd configurations are available in `deploy/` for macOS (`launchd`) and Linux (`systemd`).
+
+### ⚖️ Multi-Model Consensus Engine
+Ingest a document using SVO and SpaCy engines, compile them into KùzuDB, and run active reconciliation to flag extraction conflicts:
+```bash
+knowledgereduce consensus input.pdf --engines svo spacy --store store --graph-db graph_db
+```
+
+### 🍏 Programmatic Apple Silicon Fine-Tuning
+Execute GPU-accelerated local LoRA training programmatically on Apple Silicon:
+```bash
+knowledgereduce train --model mlx-community/Qwen2.5-3B-Instruct-4bit --data data/train --adapter-path adapters
+```
+
+### 🔍 Graph-RAG Hybrid Retriever
+Perform hybrid vector/keyword retrieval with adjacent Cypher path traversal from Python:
+```python
+from knowledge_graph_pkg.kuzu_store import KuzuStore
+from knowledge_graph_pkg.rag import GraphRAGRetriever
+
+kstore = KuzuStore("graph_db")
+retriever = GraphRAGRetriever(store=kstore, embedder_type="sentence-transformers")
+
+# Format retrieved path contexts directly for injection into LLM prompts
+context = retriever.format_context("What does mitochondria generate?", top_k=3)
+print(context)
+```
+
 ## Testing
 
 ```bash
