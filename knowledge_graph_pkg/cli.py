@@ -275,8 +275,8 @@ def _build_parser() -> argparse.ArgumentParser:
     ct = sub.add_parser("critique",
                         help="Audit and critique facts using a high-capability model backend to flag hallucinations.")
     ct.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
-    ct.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini"], default="gemini",
-                    help="Critique backend (default: gemini).")
+    ct.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini", "none"], default="gemini",
+                    help="Critique backend (default: gemini, use 'none' for offline rule-based heuristics).")
     ct.add_argument("--model", default="gemini-1.5-flash", help="Critic model name.")
     ct.add_argument("--store", default=None, help="Knowledge store directory (instead of graph-db).")
 
@@ -331,6 +331,10 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Number of layers to apply LoRA to (default: 16).")
     tm.add_argument("--dry-run", action="store_true",
                     help="Validate dataset + print the command, then exit.")
+
+    au = sub.add_parser("audit-store",
+                        help="Perform diagnostic quality audits on the knowledge store.")
+    au.add_argument("--store", default="store", help="Path to knowledge store (default: store).")
 
     return parser
 
@@ -981,6 +985,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_critique(args)
     if args.command == "compile-sft":
         return _cmd_compile_sft(args)
+    if args.command == "audit-store":
+        return _cmd_audit_store(args)
     parser.print_help()
     return 1
 
@@ -1297,6 +1303,30 @@ def _cmd_compile_sft(args) -> int:
         print(f"error writing SFT dataset: {exc}", file=sys.stderr)
         return 4
 
+    return 0
+
+
+def _cmd_audit_store(args) -> int:
+    """Perform a diagnostic quality audit on the knowledge store."""
+    import os
+    import sys
+    from .store import KnowledgeStore
+    
+    if not os.path.isdir(args.store):
+        print(f"error: store not found: {args.store}", file=sys.stderr)
+        return 2
+        
+    store = KnowledgeStore(args.store)
+    report = store.audit_summary()
+    
+    print("=== Knowledge Store Audit ===")
+    print(f"Total Drops: {report['total_drops']}")
+    print(f"Total Facts: {report['total_facts']}")
+    print("\nReliability Tier Distribution:")
+    for tier, count in sorted(report['reliability_tier_distribution'].items()):
+        print(f"  * {tier}: {count}")
+    print(f"\nMissing SVO Fields: {report['missing_fields_count']}")
+    print(f"Duplicate SVO Triplets: {report['duplicate_svo_count']}")
     return 0
 
 

@@ -1,54 +1,65 @@
-# Walkthrough: Phase II, III, Hardening, WebGL Visuals, & Neo4j Provider
+# Walkthrough: Store Audit, Heuristic Critique, Test Resilience, & Hermes Skill Packaging
 
-We have successfully executed the entire development roadmap, including **Phase II** (Crawler, Page-Rank Graph-RAG, Gemini API, FastAPI REST), **Phase III** (Self-Correction Critique Loops, SFT Compiling, and Visual Node Pruning), **Core System Hardening** (Concurrency, Database locking, Caching, and API validation improvements), **High-Performance Vectorization & 3D WebGL Visuals**, and a **Pluggable Neo4j Graph DB Provider**.
-
----
-
-## 🔌 Pluggable Neo4j Graph DB Provider
-
-To enable enterprise cloud deployments, we abstracted the graph database layer and added support for Neo4j:
-
-### 1. Base Graph Store Interface & Factory
-* **Modules**:
-  * [graph_store_base.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_store_base.py)
-  * [graph_store_factory.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_store_factory.py)
-* **Improvements**:
-  * Defined `BaseGraphStore` abstract base class.
-  * Extracted and centralized database-agnostic operations (auto-linking, contradictions search, transitive inferences, validation/reconciliation) based entirely on standard Cypher execution.
-  * Added `get_graph_store` factory to dynamically route connection strings: protocols like `bolt://` or `neo4j://` resolve to a cloud Neo4j store, while local directory paths fall back to `KuzuStore`.
-
-### 2. Neo4j Adapter
-* **Module**: [neo4j_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/neo4j_store.py)
-* **Improvements**:
-  * Implemented `Neo4jStore` supporting identical SVO fact node creation, relationship merging, and session management.
-  * Automatically sets up database uniqueness constraints on `Fact.block_id` on instantiation.
-
-### 3. Integrated Commands
-* Integrated `get_graph_store` across [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py) (`distill`, `graph-reason`, `critique`, and `compile-sft`) and [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py), decoupling all tools and services from a hard dependency on KùzuDB files.
+We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI).
 
 ---
 
-## 🚀 High-Performance Vectorization & 3D WebGL Visuals
+## 📋 Store Audit Diagnostics (`audit-store`)
 
-* **Vectorized Matrix Search Index** ([embeddings.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/embeddings.py)): Implemented `VectorIndex` using NumPy-vectorized matrix dot products to compute cosine similarities instantly.
-* **3D WebGL Force-Directed Graph Dashboard** ([mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py)): Replaced 2D Vis.js with a floating 3D WebGL particle graph using Three.js (`3d-force-graph`), featuring neon nodes, arrowheads, camera focus zooming, and active node pruning.
-
----
-
-## 🛡️ Core System Hardening
-
-* **Thread-Safe WebSockets** ([mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py)): WebSocket broadcasts copy sets to list to prevent concurrent modifications during client pruning.
-* **KuzuDB Lock Retries** ([kuzu_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/kuzu_store.py)): Catch RuntimeError lock exceptions and retry writes up to 5 times using exponential backoff.
-* **Page-Rank Score Caching** ([rag.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/rag.py)): Caches calculated scores, recalculating only if the fact count in the DB changes.
+We implemented a new CLI subcommand and database audit utility:
+* **Method**: `audit_summary()` in [store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/store.py).
+* **Command**: `knowledgereduce audit-store --store <path>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Capabilities**:
+  * Counts total drops and facts.
+  * Calculates distribution of facts across reliability tiers.
+  * Scans SVO facts to detect missing fields (empty subject/predicate/object/statement).
+  * Clusters case-insensitive duplicates of Subject-Predicate-Object triplets.
 
 ---
 
-## 🧪 Unit & Integration Testing
+## 🤖 Rule-Based Heuristic Critique Fallback
 
-We added dedicated test suites:
-* [test_vector_index.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_vector_index.py): Verifies update, removal, and zero-norm vector search engine states.
-* [test_neo4j_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_neo4j_store.py): Verifies factory routing, Cypher query mapping, and parameter injection.
+To support fully offline operations without remote API keys, we built an offline validation layer:
+* **Module**: [critique.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/critique.py).
+* **Fallback Routing**: If `FactCritic` is instantiated with `--backend none` (or if external client connections fail), it automatically routes validations through rule-based heuristics.
+* **Validation Rules**:
+  * **Pronoun Subjects**: Automatically flags facts with pronoun subjects (`he`, `she`, `it`, `they`, `this`, `that`, etc.) as non-factual (`UNVERIFIED`), preventing bad coreferenced facts from entering training sets.
+  * **Stub / Empty Fields**: Rejects statements under 5 characters or those containing empty SVO components.
+  * **Redundancies**: Flags SVO statements where components are identical (e.g. subject == predicate).
 
-### Execution Results
-* **Status**: **ALL 303 TEST CASES PASSED SUCCESSFULLY (100% green)**
-* **Codebase Coverage**: **67% overall**
+---
+
+## 🧪 Test Resilience & pytest conftest Setup
+
+To ensure developers and CI/CD pipelines can run the test suite cleanly on minimal installations (without optional extras like KùzuDB, spaCy, or Matplotlib), we isolated optional imports:
+* **Module**: [conftest.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/conftest.py).
+* **Behavior**: Dynamically registers pytest markers (`require_kuzu`, `require_spacy`, `require_matplotlib`, `require_neo4j`, `require_mlx`, `require_llama_cpp`, `require_ollama`) and checks package availability to skip matching tests gracefully instead of failing during collection.
+* **Explicit Skip Guards**: Added `pytest.importorskip("matplotlib")` to the top of [test_visualization.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_visualization.py).
+
+---
+
+## 📦 Hermes Skill Packaging & Tool Surface
+
+To expose the repository's native capabilities directly as a Hermes/Antigravity coding skill, we hardened the skill configuration and registry:
+* **Canonical Skill Manifest**: [.agents/skills/knowledge-reduce-core/SKILL.md](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills/knowledge-reduce-core/SKILL.md).
+* **Enriched Metadata**:
+  * Frontmatter categories, environment variables, commands, and platforms.
+  * Detailed `## Tool surface` mapping the package's python entrypoints and command-line subcommands.
+  * Actionable `## Hermes prompt patterns` with template request/response schemas for distilling, dropping, and auditing facts.
+  * Explicit `## Safety/timeout defaults`.
+* **Registry mapping**: Linked in [.agents/skills.json](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills.json).
+* **Bootstrap validation script**: [scripts/smoke_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/scripts/smoke_skill.py) verifying version alignment, importability, store auditing, and critique fallbacks.
+
+---
+
+## ⚙️ Automated Github Actions CI Validation
+
+We established automated gating checks to guarantee versioning and skill completeness on future commits:
+* **CI Workflow**: [.github/workflows/skill-validation.yml](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.github/workflows/skill-validation.yml).
+* **Validation Tests**: [test_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_skill.py) verifying frontmatter schemas, checking YAML validity, and asserting package/skill version alignment.
+
+---
+
+## 🧪 Verification Results
+
+* **Execution Status**: **ALL 311 TEST CASES PASSED SUCCESSFULLY (100% green)**

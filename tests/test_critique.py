@@ -54,3 +54,57 @@ class TestFactCritic(unittest.TestCase):
         self.assertEqual(len(reports), 2)
         self.assertTrue(reports[0]["is_factual"])
         self.assertTrue(reports[1]["is_factual"])
+
+    def test_heuristic_critique_pronoun_subject(self):
+        critic = FactCritic("none")
+        fact = {
+            "subject": "it",
+            "predicate": "heats",
+            "object": "water",
+            "statement": "it heats water.",
+            "fact_id": "f_pronoun"
+        }
+        report = critic.critique_fact(fact)
+        self.assertFalse(report["is_factual"])
+        self.assertIn("Pronoun subject", report["reasoning"])
+
+    def test_heuristic_critique_stub_or_empty(self):
+        critic = FactCritic("none")
+        # Empty fields
+        fact_empty = {
+            "subject": "",
+            "predicate": "heats",
+            "object": "water",
+            "statement": "heats water.",
+            "fact_id": "f_empty"
+        }
+        report_empty = critic.critique_fact(fact_empty)
+        self.assertFalse(report_empty["is_factual"])
+        self.assertIn("too short or has empty SVO", report_empty["reasoning"])
+
+    def test_heuristic_critique_identical_components(self):
+        critic = FactCritic("none")
+        fact = {
+            "subject": "water",
+            "predicate": "water",
+            "object": "water",
+            "statement": "water water water.",
+            "fact_id": "f_redundant"
+        }
+        report = critic.critique_fact(fact)
+        self.assertFalse(report["is_factual"])
+        self.assertIn("Redundant SVO components", report["reasoning"])
+
+    def test_heuristic_critique_valid(self):
+        critic = FactCritic("none")
+        fact = {
+            "subject": "Fire",
+            "predicate": "heats",
+            "object": "water",
+            "statement": "Fire heats water.",
+            "fact_id": "f_valid"
+        }
+        report = critic.critique_fact(fact)
+        self.assertTrue(report["is_factual"])
+        self.assertIn("Passed offline heuristic validations", report["reasoning"])
+
