@@ -105,6 +105,14 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🧬 Semantic Ontology Distillation & Schema Inference (`distill-ontology`)
+
+* **Taxonomy Extraction**: Added automatic distillation of child-parent taxonomies from `is a` or `type of` relationships, grouping them into hierarchical class structures.
+* **Semantic Category Categorization**: Implemented category inference engine that automatically labels concept nodes (e.g. `PROCESS`, `ENTITY`, `LOCATION`, `ATTRIBUTE`) using syntactic heuristics (suffixes and local incoming/outgoing predicate configurations).
+* **Schema Graph Aggregation**: Generalizes millions of instance-level links into class-level schemas (e.g. `(ENTITY) -[produces]-> (CONCEPT)`), allowing developers to audit the structural skeleton of the ingested graph database.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 322 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 323 TEST CASES PASSED SUCCESSFULLY (100% green)**

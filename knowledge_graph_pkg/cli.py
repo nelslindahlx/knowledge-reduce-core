@@ -352,6 +352,11 @@ def _build_parser() -> argparse.ArgumentParser:
     cg.add_argument("--include-contradictions", action="store_true",
                      help="Compile contradiction resolution instruction pairs alongside path walks.")
 
+    do = sub.add_parser("distill-ontology",
+                         help="Distill a high-level concept taxonomy and relationship schema from the graph.")
+    do.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
+    do.add_argument("-o", "--output", required=True, help="Output JSON path to save the distilled ontology summary.")
+
     return parser
 
 
@@ -1007,6 +1012,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_resolve_entities(args)
     if args.command == "compile-graph-instructions":
         return _cmd_compile_graph_instructions(args)
+    if args.command == "distill-ontology":
+        return _cmd_distill_ontology(args)
     parser.print_help()
     return 1
 
@@ -1394,6 +1401,43 @@ def _cmd_compile_graph_instructions(args) -> int:
             
         save_compiled_instructions(instructions, args.output)
         print(f"Successfully compiled {len(instructions)} total instructions to {args.output}")
+    finally:
+        kstore.close()
+    return 0
+
+
+def _cmd_distill_ontology(args) -> int:
+    """Distill the high-level taxonomy and relation schema from the graph."""
+    import sys
+    import json
+    try:
+        from .graph_store_factory import get_graph_store
+        from .ontology import OntologyDistiller
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    kstore = get_graph_store(args.graph_db)
+    try:
+        distiller = OntologyDistiller(kstore)
+        taxonomy = distiller.distill_taxonomy()
+        semantic_types = distiller.infer_semantic_types()
+        schema = distiller.infer_relation_schema()
+        
+        summary = {
+            "taxonomy": taxonomy,
+            "semantic_types": semantic_types,
+            "relation_schema": schema
+        }
+        
+        with open(args.output, "w", encoding="utf-8") as fh:
+            json.dump(summary, fh, indent=2)
+            
+        print("Ontology Distillation Complete:")
+        print(f"  - Extracted {len(taxonomy)} taxonomic hierarchies.")
+        print(f"  - Categorized {len(semantic_types)} concepts.")
+        print(f"  - Inferred {len(schema)} schema relationships.")
+        print(f"  - Summary saved to: {args.output}")
     finally:
         kstore.close()
     return 0
