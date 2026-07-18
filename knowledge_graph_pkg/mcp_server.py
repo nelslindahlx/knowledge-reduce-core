@@ -515,22 +515,44 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 if (f.subject) {
                     const sLower = f.subject.trim().toLowerCase();
                     if (!subjectsAndObjects.has(sLower)) {
-                        subjectsAndObjects.set(sLower, { id: 'concept_' + sLower, label: f.subject.trim(), type: 'concept' });
+                        subjectsAndObjects.set(sLower, { 
+                            id: 'concept_' + sLower, 
+                            label: f.subject.trim(), 
+                            type: 'concept',
+                            semType: f.subject_type || 'CONCEPT',
+                            parentClass: f.subject_parent || ''
+                        });
                     }
                 }
                 if (f.object) {
                     const oLower = f.object.trim().toLowerCase();
                     if (!subjectsAndObjects.has(oLower)) {
-                        subjectsAndObjects.set(oLower, { id: 'concept_' + oLower, label: f.object.trim(), type: 'concept' });
+                        subjectsAndObjects.set(oLower, { 
+                            id: 'concept_' + oLower, 
+                            label: f.object.trim(), 
+                            type: 'concept',
+                            semType: f.object_type || 'CONCEPT',
+                            parentClass: f.object_parent || ''
+                        });
                     }
                 }
             });
 
+            const typeColors = {
+                'PROCESS': '#10b981', // Emerald
+                'ENTITY': '#3b82f6',   // Blue
+                'LOCATION': '#f59e0b', // Amber
+                'ATTRIBUTE': '#ec4899',// Pink
+                'CONCEPT': '#06b6d4'   // Cyan
+            };
+
             subjectsAndObjects.forEach(concept => {
+                const color = typeColors[concept.semType] || '#06b6d4';
+                const labelText = concept.parentClass ? `${concept.label} (${concept.parentClass})` : concept.label;
                 visNodes.push({
                     id: concept.id,
-                    label: concept.label,
-                    color: '#06b6d4',
+                    label: labelText,
+                    color: color,
                     val: 15
                 });
             });
@@ -958,7 +980,30 @@ def make_fastapi_app(tools: Any) -> Any:
                 "MATCH (a:Fact)-[r:RELATED]->(b:Fact) "
                 "RETURN a.block_id AS from_id, b.block_id AS to_id, r.predicate AS predicate, r.weight AS weight"
             )
-            return {"nodes": nodes, "edges": edges}
+            
+            from .ontology import OntologyDistiller
+            distiller = OntologyDistiller(ws_tools.store)
+            sem_types = distiller.infer_semantic_types()
+            taxonomy = distiller.distill_taxonomy()
+            
+            # Map child back to parent class
+            parent_classes = {}
+            for parent, children in taxonomy.items():
+                for child in children:
+                    parent_classes[child.lower()] = parent
+                    
+            enriched_nodes = []
+            for n in nodes:
+                s = str(n.get("subject", ""))
+                o = str(n.get("object", ""))
+                node_copy = dict(n)
+                node_copy["subject_type"] = sem_types.get(s, "CONCEPT")
+                node_copy["object_type"] = sem_types.get(o, "CONCEPT")
+                node_copy["subject_parent"] = parent_classes.get(s.lower(), None)
+                node_copy["object_parent"] = parent_classes.get(o.lower(), None)
+                enriched_nodes.append(node_copy)
+                
+            return {"nodes": enriched_nodes, "edges": edges}
         except Exception as exc:
             return JSONResponse(status_code=500, content={"error": str(exc)})
 

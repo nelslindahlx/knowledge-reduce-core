@@ -113,6 +113,18 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🎛️ 3D Ontology Visualization in Dashboard
+
+* **Color-Coded Semantic Types**: Upgraded the 3D physics-simulated Force Graph in the dashboard. Concept nodes are now rendered in distinct type-specific colors:
+  * `PROCESS` -> Emerald green (`#10b981`)
+  * `ENTITY` -> Blue (`#3b82f6`)
+  * `LOCATION` -> Amber orange (`#f59e0b`)
+  * `ATTRIBUTE` -> Pink (`#ec4899`)
+  * `CONCEPT` -> Cyan (`#06b6d4`)
+* **Taxonomic Labels**: Configured node rendering to check for parent classes. Concept node labels now dynamically append their taxonomic class (e.g. `ATP (ChemicalCompound)`), providing a clear class-hierarchy overview.
+
+---
+
 ## 🧪 Verification Results
 
 * **Execution Status**: **ALL 323 TEST CASES PASSED SUCCESSFULLY (100% green)**

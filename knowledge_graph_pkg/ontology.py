@@ -28,8 +28,10 @@ class OntologyDistiller:
         
         taxonomy: Dict[str, List[str]] = {}
         for row in subclasses:
-            child = str(row["child"]).strip()
-            parent = str(row["parent"]).strip()
+            child = str(row.get("child", "")).strip()
+            parent = str(row.get("parent", "")).strip()
+            if not child or not parent:
+                continue
             if parent not in taxonomy:
                 taxonomy[parent] = []
             if child not in taxonomy[parent]:
@@ -48,12 +50,17 @@ class OntologyDistiller:
         
         concept_predicates: Dict[str, Set[str]] = {}
         for f in facts:
-            s, p, o = str(f["subject"]), str(f["predicate"]), str(f["object"])
+            s = str(f.get("subject", "")).strip()
+            p = str(f.get("predicate", "")).strip()
+            o = str(f.get("object", "")).strip()
+            if not s or not o:
+                continue
             for concept in (s, o):
                 if concept not in concept_predicates:
                     concept_predicates[concept] = set()
-            concept_predicates[s].add(f"out:{p}")
-            concept_predicates[o].add(f"in:{p}")
+            if p:
+                concept_predicates[s].add(f"out:{p}")
+                concept_predicates[o].add(f"in:{p}")
             
         semantic_types: Dict[str, str] = {}
         for concept, preds in concept_predicates.items():
@@ -93,7 +100,11 @@ class OntologyDistiller:
         
         schema_triplets: Set[Tuple[str, str, str]] = set()
         for f in facts:
-            s, p, o = str(f["subject"]), str(f["predicate"]), str(f["object"])
+            s = str(f.get("subject", "")).strip()
+            p = str(f.get("predicate", "")).strip()
+            o = str(f.get("object", "")).strip()
+            if not s or not o or not p:
+                continue
             type_s = sem_types.get(s, "CONCEPT")
             type_o = sem_types.get(o, "CONCEPT")
             schema_triplets.add((type_s, p, type_o))
