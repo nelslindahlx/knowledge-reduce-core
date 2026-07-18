@@ -52,7 +52,7 @@ hermes = [
 # v1 is Ollama-first; the graph store (kuzu) is added in Session 6.
 model-reduce = ["ollama>=0.3.0", "pydantic>=2.0"]
 # Graph store + query layer for ModelReduce (Session 6).
-graph = ["kuzu>=0.6.0"]
+graph = ["kuzu>=0.6.0", "neo4j>=5.0.0"]
 # Local Apple Silicon SFT (MLX-based).
 mlx = ["mlx-lm>=0.20.0"]
 # Pluggable backends and offline embeddings extras.
@@ -66,8 +66,8 @@ production = ["fastapi>=0.110.0", "uvicorn>=0.28.0", "websockets>=12.0", "google
 
 
 [project.urls]
-Homepage = "https://github.com/nelslindahlx/Hermes-Output"
-Repository = "https://github.com/nelslindahlx/Hermes-Output"
+Homepage = "https://github.com/nelslindahlx/knowledge-reduce-core"
+Repository = "https://github.com/nelslindahlx/knowledge-reduce-core"
 
 [project.scripts]
 knowledgereduce = "knowledge_graph_pkg.cli:main"
