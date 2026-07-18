@@ -518,6 +518,29 @@ context = retriever.format_context("What does mitochondria generate?", top_k=3)
 print(context)
 ```
 
+### 🕸️ Model Weight Crawling & Entropy Profiling
+Recursively crawl a model backend's weights starting from a seed topic, checking log probabilities for confidence-based pruning:
+```bash
+knowledgereduce crawl --seed "Mitochondria" --backend llama-cpp --model qwen2.5-0.5b-instruct-q4_k_m.gguf --store store --max-depth 2
+```
+
+### ⚖️ Critique & Verification Engine (Self-Correction)
+Audit facts using a high-capability model backend (like Google Gemini) to identify hallucinations. Flagged facts are automatically demoted to `UNVERIFIED` in KùzuDB:
+```bash
+knowledgereduce critique --backend gemini --model gemini-1.5-flash --graph-db graph_db
+```
+
+### 📦 SFT Dataset Compiler
+Compile facts directly into standard instruction-tuning datasets ready for fine-tuning:
+```bash
+# Export in Alpaca format
+knowledgereduce compile-sft -o dataset.json --format alpaca --graph-db graph_db
+
+# Export in ShareGPT format
+knowledgereduce compile-sft -o dataset.jsonl --format sharegpt --graph-db graph_db
+```
+
+
 ## Testing
 
 ```bash
