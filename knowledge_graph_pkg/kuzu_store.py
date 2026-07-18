@@ -42,19 +42,50 @@ class KuzuStore:
             ) from exc
         self._kuzu = kuzu
         self.path = path
-        self.db = kuzu.Database(path)
-        self.conn = kuzu.Connection(self.db)
+        
+        import time
+        max_retries = 5
+        backoff = 0.1
+        for attempt in range(max_retries):
+            try:
+                self.db = kuzu.Database(path)
+                self.conn = kuzu.Connection(self.db)
+                break
+            except RuntimeError as exc:
+                if attempt == max_retries - 1:
+                    raise exc
+                time.sleep(backoff)
+                backoff *= 2
+                
         self._init_schema()
+
+    def _execute(self, cypher: str, params: Optional[Dict[str, Any]] = None):
+        """Execute a query with auto-retry on lock errors."""
+        import time
+        max_retries = 5
+        backoff = 0.1
+        for attempt in range(max_retries):
+            try:
+                return self.conn.execute(cypher, params or {})
+            except RuntimeError as exc:
+                err_msg = str(exc).lower()
+                if "lock" in err_msg or "connection" in err_msg or attempt == max_retries - 1:
+                    if attempt == max_retries - 1:
+                        raise exc
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
+                    raise exc
 
     def _init_schema(self) -> None:
         # CREATE ... IF NOT EXISTS keeps reopen/persist working.
-        self.conn.execute(
+        self._execute(
             "CREATE NODE TABLE IF NOT EXISTS Fact("
             "block_id STRING, statement STRING, subject STRING, predicate STRING, "
             "object STRING, domain STRING, reliability STRING, agreement INT64, "
             "quality INT64, source_models STRING, PRIMARY KEY(block_id))"
         )
-        self.conn.execute(
+        self._execute(
             "CREATE REL TABLE IF NOT EXISTS RELATED(FROM Fact TO Fact, "
             "predicate STRING, weight DOUBLE)"
         )
@@ -78,7 +109,7 @@ class KuzuStore:
                 "models": ", ".join(models) if isinstance(models, list) else _s(models),
             }
             # MERGE makes re-ingest idempotent (no duplicate block_id).
-            self.conn.execute(
+            self._execute(
                 "MERGE (f:Fact {block_id: $bid}) "
                 "SET f.statement = $stmt, f.subject = $subj, f.predicate = $pred, "
                 "f.object = $obj, f.domain = $domain, f.reliability = $rel, "
@@ -90,7 +121,7 @@ class KuzuStore:
     # ------------------------------------------------------------------ #
     def query(self, cypher: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Run a Cypher query; return a list of column-name -> value dicts."""
-        result = self.conn.execute(cypher, params or {})
+        result = self._execute(cypher, params or {})
         cols = result.get_column_names()
         rows: List[Dict[str, Any]] = []
         while result.has_next():
@@ -198,11 +229,11 @@ class KuzuStore:
                 target_id = c["b_id"]
                 target_stmt = c["b_stmt"]
             else:
-                self.conn.execute(
+                self._execute(
                     "MATCH (f:Fact) WHERE f.block_id = $bid SET f.reliability = 'UNVERIFIED'",
                     {"bid": c["a_id"]}
                 )
-                self.conn.execute(
+                self._execute(
                     "MATCH (f:Fact) WHERE f.block_id = $bid SET f.reliability = 'UNVERIFIED'",
                     {"bid": c["b_id"]}
                 )
@@ -210,7 +241,7 @@ class KuzuStore:
                 demoted.append({"block_id": c["b_id"], "statement": c["b_stmt"]})
                 continue
 
-            self.conn.execute(
+            self._execute(
                 "MATCH (f:Fact) WHERE f.block_id = $bid SET f.reliability = 'UNVERIFIED'",
                 {"bid": target_id}
             )

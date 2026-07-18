@@ -200,9 +200,16 @@ class OpenAICompatibleBackend:
                 "pip install knowledgereduce[openai]"
             ) from exc
         import os
+        key = api_key or os.environ.get("OPENAI_API_KEY")
+        url = base_url or os.environ.get("OPENAI_BASE_URL")
+        if not key and not url:
+            raise ValueError(
+                "OpenAI API key not found. Please set the OPENAI_API_KEY environment variable "
+                "or pass api_key to the backend constructor."
+            )
         self.client = openai.OpenAI(
-            api_key=api_key or os.environ.get("OPENAI_API_KEY", "mock-key"),
-            base_url=base_url or os.environ.get("OPENAI_BASE_URL")
+            api_key=key or "mock-key",
+            base_url=url
         )
         self.model = model
 
@@ -282,7 +289,13 @@ class GeminiBackend:
                 "pip install google-generativeai"
             ) from exc
         import os
-        genai.configure(api_key=api_key or os.environ.get("GEMINI_API_KEY", "mock-key"))
+        key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not key:
+            raise ValueError(
+                "Gemini API key not found. Please set the GEMINI_API_KEY environment variable "
+                "or pass api_key to the backend constructor."
+            )
+        genai.configure(api_key=key)
         self.client = genai.GenerativeModel(model)
         self.model = model
 

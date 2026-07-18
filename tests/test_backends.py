@@ -1,5 +1,5 @@
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 # Setup dummy modules before any package import is evaluated
 mock_llama_cpp = MagicMock()
@@ -15,10 +15,6 @@ mock_openai.OpenAI = mock_OpenAI_class
 mock_SentenceTransformer_class = MagicMock()
 mock_sentence_transformers.SentenceTransformer = mock_SentenceTransformer_class
 
-sys.modules['llama_cpp'] = mock_llama_cpp
-sys.modules['openai'] = mock_openai
-sys.modules['sentence_transformers'] = mock_sentence_transformers
-
 import unittest
 from knowledge_graph_pkg.model_probe import get_backend, LlamaCppBackend, OpenAICompatibleBackend
 from knowledge_graph_pkg.embeddings import get_embedder, SentenceTransformersEmbedder
@@ -26,10 +22,19 @@ from knowledge_graph_pkg.embeddings import get_embedder, SentenceTransformersEmb
 class TestPluggableBackends(unittest.TestCase):
 
     def setUp(self):
+        self.sys_modules_patcher = patch.dict(sys.modules, {
+            'llama_cpp': mock_llama_cpp,
+            'openai': mock_openai,
+            'sentence_transformers': mock_sentence_transformers
+        })
+        self.sys_modules_patcher.start()
         # Reset mocks before each test
         mock_Llama_class.reset_mock()
         mock_OpenAI_class.reset_mock()
         mock_SentenceTransformer_class.reset_mock()
+
+    def tearDown(self):
+        self.sys_modules_patcher.stop()
 
     def test_llama_cpp_backend(self):
         mock_instance = MagicMock()
@@ -112,8 +117,10 @@ class TestPluggableBackends(unittest.TestCase):
         backend = get_backend("llama-cpp", "/path/to/model.gguf")
         self.assertIsInstance(backend, LlamaCppBackend)
 
-        backend_openai = get_backend("openai", "gpt-4")
-        self.assertIsInstance(backend_openai, OpenAICompatibleBackend)
+        import os
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
+            backend_openai = get_backend("openai", "gpt-4")
+            self.assertIsInstance(backend_openai, OpenAICompatibleBackend)
 
         embedder = get_embedder("sentence-transformers", "all-MiniLM-L6-v2")
         self.assertIsInstance(embedder, SentenceTransformersEmbedder)

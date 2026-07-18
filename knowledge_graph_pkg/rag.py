@@ -15,6 +15,8 @@ class GraphRAGRetriever:
                 self.embedder = get_embedder(embedder_type, model=embedder_model)
             except Exception as exc:
                 print(f"[RAG] Warning: Could not load embedder ({exc}), falling back to keyword search.")
+        self._cached_pagerank: Dict[str, float] = {}
+        self._last_fact_count: int = -1
 
     def retrieve_seeds(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Retrieve seed facts using semantic vector similarity or keyword matching."""
@@ -72,8 +74,19 @@ class GraphRAGRetriever:
 
     def calculate_pagerank(self) -> Dict[str, float]:
         """Load all facts and relationships from Kuzu DB into a NetworkX DiGraph
-        and compute Page-Rank scores for all facts."""
+        and compute Page-Rank scores for all facts. Caches results in-memory."""
         import networkx as nx
+        
+        try:
+            current_count = self.store.count()
+            if not isinstance(current_count, (int, float)):
+                current_count = -1
+        except Exception:
+            current_count = -1
+            
+        if current_count >= 0 and current_count == self._last_fact_count:
+            return self._cached_pagerank
+
         try:
             # 1. Retrieve all facts (nodes)
             facts = self.store.query("MATCH (f:Fact) RETURN f.block_id AS block_id")
@@ -98,9 +111,13 @@ class GraphRAGRetriever:
             return {}
 
         try:
-            return nx.pagerank(graph, alpha=0.85)
+            scores = nx.pagerank(graph, alpha=0.85)
         except Exception:
-            return {node: 1.0 / len(graph) for node in graph.nodes}
+            scores = {node: 1.0 / len(graph) for node in graph.nodes}
+            
+        self._cached_pagerank = scores
+        self._last_fact_count = current_count
+        return scores
 
     def retrieve(self, query: str, top_k: int = 5, hops: int = 2, pagerank_weight: float = 0.3) -> List[Dict[str, Any]]:
         """Perform hybrid multi-hop retrieval:

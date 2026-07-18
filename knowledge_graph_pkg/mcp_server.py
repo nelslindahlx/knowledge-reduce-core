@@ -940,7 +940,7 @@ def make_fastapi_app(tools: Any) -> Any:
         except WebSocketDisconnect:
             pass
         finally:
-            active_websockets.remove(websocket)
+            active_websockets.discard(websocket)
 
     @app.post("/api/notify_update")
     async def notify_update(request: Request):
@@ -953,7 +953,7 @@ def make_fastapi_app(tools: Any) -> Any:
         edges = payload.get("edges", [])
         
         closed_sockets = set()
-        for ws in active_websockets:
+        for ws in list(active_websockets):
             try:
                 await ws.send_json({
                     "type": "graph_update",
@@ -976,7 +976,7 @@ def make_fastapi_app(tools: Any) -> Any:
             
             # Broadcast the pruning event to active WebSocket visual clients
             closed_sockets = set()
-            for ws in active_websockets:
+            for ws in list(active_websockets):
                 try:
                     await ws.send_json({
                         "type": "prune_fact",
