@@ -133,6 +133,16 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🔀 Ontology Schema Switcher Mode in Dashboard
+
+* **Unified Schema Endpoint**: Created `/api/schema` to serve distilled relation schemas generated on the fly.
+* **Interactive Mode Switcher**: Added a button toggle group at the top of the dashboard sidebar:
+  * **Instance Graph Mode**: Visualizes the detailed flat concept graph.
+  * **Ontology Schema Mode**: Visualizes the high-level category nodes (e.g. `ENTITY`, `PROCESS`) and class-level schemas (e.g. `(ENTITY) -[produces]-> (CONCEPT)`), avoiding instance clutter.
+* **UX RAG Auto-Fallback**: If the user submits a Graph-RAG search while in Schema Mode, the visualizer automatically switches back to Instance Mode and highlights the multi-hop path.
+
+---
+
 ## 🧪 Verification Results
 
 * **Execution Status**: **ALL 323 TEST CASES PASSED SUCCESSFULLY (100% green)**

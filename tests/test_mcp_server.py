@@ -182,6 +182,11 @@ def test_fastapi_endpoints():
         assert response.status_code == 200
         assert "context" in response.json()
         assert "facts" in response.json()
+
+        # 8. Test GET /api/schema
+        response = client_secured.get("/api/schema", headers=headers_ws)
+        assert response.status_code == 200
+        assert "schema" in response.json()
     finally:
         del os.environ["MCP_JWT_SECRET"]
 

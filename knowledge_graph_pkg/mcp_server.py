@@ -419,6 +419,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             <div class="logo-badge">Graph</div>
         </div>
 
+        <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+            <button class="cypher-btn" id="mode-instance-btn" style="flex: 1; background: #3b82f6; border: none; padding: 6px 12px; font-size: 11px; font-weight: 600; cursor: pointer; border-radius: 4px;">Instance Graph</button>
+            <button class="cypher-btn" id="mode-schema-btn" style="flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 6px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 4px;">Ontology Schema</button>
+        </div>
+
         <div class="search-container">
             <input type="text" class="search-input" id="search-box" placeholder="Search facts, subjects, domains...">
         </div>
@@ -490,6 +495,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         let allEdges = [];
         let highlightedNodes = new Set();
         let highlightedLinks = new Set();
+        let currentMode = 'instance';
 
         // Color coding for reliability
         const reliabilityColors = {
@@ -832,6 +838,18 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 if (!response.ok) throw new Error('RAG query failed');
                 const data = await response.json();
                 
+                // Automatically switch back to instance mode if they run a RAG query
+                if (currentMode !== 'instance') {
+                    currentMode = 'instance';
+                    document.getElementById('mode-instance-btn').style.background = '#3b82f6';
+                    document.getElementById('mode-instance-btn').style.color = '#ffffff';
+                    document.getElementById('mode-instance-btn').style.border = 'none';
+                    document.getElementById('mode-schema-btn').style.background = 'rgba(255,255,255,0.05)';
+                    document.getElementById('mode-schema-btn').style.color = 'var(--text-muted)';
+                    document.getElementById('mode-schema-btn').style.border = '1px solid rgba(255,255,255,0.1)';
+                    renderNetwork(allNodes, allEdges);
+                }
+
                 highlightedNodes.clear();
                 highlightedLinks.clear();
                 
@@ -857,6 +875,90 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                 alert('Error running Graph-RAG: ' + err.message);
             }
         });
+
+        document.getElementById('mode-instance-btn').addEventListener('click', () => {
+            if (currentMode === 'instance') return;
+            currentMode = 'instance';
+            document.getElementById('mode-instance-btn').style.background = '#3b82f6';
+            document.getElementById('mode-instance-btn').style.color = '#ffffff';
+            document.getElementById('mode-instance-btn').style.border = 'none';
+            document.getElementById('mode-schema-btn').style.background = 'rgba(255,255,255,0.05)';
+            document.getElementById('mode-schema-btn').style.color = 'var(--text-muted)';
+            document.getElementById('mode-schema-btn').style.border = '1px solid rgba(255,255,255,0.1)';
+            
+            renderNetwork(allNodes, allEdges);
+        });
+
+        document.getElementById('mode-schema-btn').addEventListener('click', async () => {
+            if (currentMode === 'schema') return;
+            currentMode = 'schema';
+            document.getElementById('mode-schema-btn').style.background = '#3b82f6';
+            document.getElementById('mode-schema-btn').style.color = '#ffffff';
+            document.getElementById('mode-schema-btn').style.border = 'none';
+            document.getElementById('mode-instance-btn').style.background = 'rgba(255,255,255,0.05)';
+            document.getElementById('mode-instance-btn').style.color = 'var(--text-muted)';
+            document.getElementById('mode-instance-btn').style.border = '1px solid rgba(255,255,255,0.1)';
+            
+            await loadSchemaData();
+        });
+
+        async function loadSchemaData() {
+            try {
+                const response = await fetch('/api/schema', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Failed to load schema');
+                const data = await response.json();
+                
+                const schemaNodes = new Set();
+                const schemaLinks = [];
+                
+                (data.schema || []).forEach(s => {
+                    schemaNodes.add(s.subject_type);
+                    schemaNodes.add(s.object_type);
+                    schemaLinks.push({
+                        id: `schema_${s.subject_type}_${s.predicate}_${s.object_type}`,
+                        source: `concept_${s.subject_type.toLowerCase()}`,
+                        target: `concept_${s.object_type.toLowerCase()}`,
+                        label: s.predicate,
+                        color: '#a78bfa',
+                        fact: { statement: `Schema relation: ${s.subject_type} -> ${s.predicate} -> ${s.object_type}`, reliability: 'VERIFIED' }
+                    });
+                });
+                
+                const typeColors = {
+                    'PROCESS': '#10b981',
+                    'ENTITY': '#3b82f6',
+                    'LOCATION': '#f59e0b',
+                    'ATTRIBUTE': '#ec4899',
+                    'CONCEPT': '#06b6d4'
+                };
+                
+                const visNodes = Array.from(schemaNodes).map(type => ({
+                    id: `concept_${type.toLowerCase()}`,
+                    label: type,
+                    color: typeColors[type] || '#06b6d4',
+                    val: 30
+                }));
+                
+                const container = document.getElementById('mynetwork');
+                container.innerHTML = '';
+                
+                Graph = ForceGraph3D()(container)
+                    .graphData({ nodes: visNodes, links: schemaLinks })
+                    .nodeColor(node => node.color)
+                    .nodeLabel(node => `<div class="node-tooltip"><b>${node.label} Category</b></div>`)
+                    .nodeVal(node => node.val)
+                    .linkColor(link => link.color)
+                    .linkWidth(2.5)
+                    .linkLabel(link => `<div class="link-tooltip"><b>${link.label}</b></div>`)
+                    .linkDirectionalArrowLength(6)
+                    .linkDirectionalArrowRelPos(0.95)
+                    .backgroundColor('#0b0f19');
+            } catch (err) {
+                alert('Error loading ontology schema: ' + err.message);
+            }
+        }
         
         function escapeHtml(text) {
             return text
@@ -891,12 +993,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
                                     }
                                 });
                             }
-                            renderNetwork(allNodes, allEdges);
+                            if (currentMode === 'instance') {
+                                renderNetwork(allNodes, allEdges);
+                            }
                             updateStats(allNodes);
                         } else if (update.type === 'prune_fact') {
                             const blockId = update.block_id;
                             allNodes = allNodes.filter(n => n.block_id !== blockId);
-                            renderNetwork(allNodes, allEdges);
+                            if (currentMode === 'instance') {
+                                renderNetwork(allNodes, allEdges);
+                            }
                             updateStats(allNodes);
                         }
                     } catch (e) {
@@ -1118,6 +1224,19 @@ def make_fastapi_app(tools: Any) -> Any:
                 "facts": retrieved_facts,
                 "context": formatted_context
             }
+        except Exception as exc:
+            return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+    @app.get("/api/schema", dependencies=[Depends(verify_token)])
+    async def get_api_schema(request: Request):
+        try:
+            workspace_id = get_workspace_id(request)
+            ws_tools = get_tools_for_workspace(workspace_id)
+            from .ontology import OntologyDistiller
+            distiller = OntologyDistiller(ws_tools.store)
+            schema = distiller.infer_relation_schema()
+            return {"schema": schema}
         except Exception as exc:
             return JSONResponse(status_code=500, content={"error": str(exc)})
 
