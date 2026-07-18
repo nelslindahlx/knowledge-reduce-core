@@ -2,9 +2,11 @@
 
 We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI), as well as **Finalizing Phase II Milestones** (Agent Integration Examples, Weighted Consensus, and JWT Auth/workspace segregation).
 
-In this latest step, we resolved additional architectural constraints highlighted by critical review:
+In this latest step, we resolved additional architectural constraints highlighted by critical review and implemented major Graph upgrades:
 * **Dynamic Neo4j Multi-Database Parsing**: Enabled routing multi-tenant query requests to independent Neo4j database sessions by extracting target database names from the scheme URIs (e.g. `bolt://host:port/database_name` or via query param `?database=database_name`).
 * **Pronoun Object Heuristics**: Upgraded the rule-based offline critique parser to inspect both the Subject and Object elements, rejecting statements with pronoun objects (e.g., `"them"`, `"it"`) to preserve absolute fact independence.
+* **Active Entity Resolution & Synonym Merging**: Added character-level Jaccard similarity clustering to resolve synonym entity nodes (e.g. `"ATP"` and `"Adenosine Triphosphate (ATP)"`) into canonical concepts, collapsing matching edges and duplicate facts.
+* **Subgraph Instruction Compiler**: Designed a multi-hop graph walker that extracts relationship paths and synthesizes natural-language reasoning instruction datasets for LoRA fine-tuning.
 
 ---
 
@@ -56,6 +58,24 @@ To expose the repository's native capabilities directly as a Hermes/Antigravity 
 
 ---
 
+## 🕸️ Active Entity Resolution & Synonym Merging (`resolve-entities`)
+
+We implemented a store-agnostic entity merger:
+* **Module**: [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py).
+* **Command**: `knowledgereduce resolve-entities --graph-db <path> --threshold <0..1>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Behavior**: Scans all `Fact` nodes to group similar entity references, updates their names, updates statements to propagate the canonical spelling, and collapses redundant duplicate SVO node triplets into single unified nodes.
+
+---
+
+## 🛤️ Subgraph Instruction Compiler (`compile-graph-instructions`)
+
+We built a multi-hop graph walker to generate reasoning instructions from structural topology:
+* **Module**: [graph_compiler.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_compiler.py).
+* **Command**: `knowledgereduce compile-graph-instructions --graph-db <path> -o <jsonl_path>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Behavior**: Traverses RELATED edges connecting facts, synthesizing Alpaca-style instruction targets for connection tracing, chain sequences, and intermediate inference step predictions.
+
+---
+
 ## ⚙️ Dynamic Neo4j URI Parsing & Session Routing
 
 We implemented a robust connection string parser to dynamically extract database names:
@@ -64,18 +84,6 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
-## 🔌 Finalizing Phase II Milestones (Scaling & Agents)
-
-To achieve absolute 100% completion of the Phase II roadmap, we implemented the final scaling features:
-1. **Agent Integration Examples**:
-   * [examples/agent_integration.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/examples/agent_integration.py) containing copy-pasteable blueprints for LangChain Custom Tools and LlamaIndex QueryEngine.
-2. **Capability-Weighted Consensus**:
-   * Evaluates consensus clusters in [cross_model.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cross_model.py) using source model weight values (e.g. Gemini Pro / GPT-4 = 3.0, small Qwen models = 0.5) to dynamically assign fact reliability levels based on source reasoning quality.
-3. **JWT Auth & Dynamic Workspace Segmentation**:
-   * Refactored [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py) to validate HTTP Bearer JWT tokens via FastAPI `Depends` and partition graph database connections dynamically based on the incoming `X-Workspace-Id` header.
-
----
-
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 315 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 317 TEST CASES PASSED SUCCESSFULLY (100% green)**

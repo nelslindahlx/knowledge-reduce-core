@@ -336,6 +336,19 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Perform diagnostic quality audits on the knowledge store.")
     au.add_argument("--store", default="store", help="Path to knowledge store (default: store).")
 
+    res = sub.add_parser("resolve-entities",
+                         help="Perform entity resolution and merge synonym nodes in the Kùzu graph.")
+    res.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
+    res.add_argument("--threshold", type=float, default=0.85,
+                     help="Jaccard word-similarity threshold for merging entities (default: 0.85).")
+
+    cg = sub.add_parser("compile-graph-instructions",
+                         help="Compile multi-hop relationship chains from the graph into fine-tuning instructions.")
+    cg.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
+    cg.add_argument("-o", "--output", required=True, help="Output JSONL instruction file path.")
+    cg.add_argument("--max-chains", type=int, default=100,
+                     help="Maximum number of relationship chains to compile (default: 100).")
+
     return parser
 
 
@@ -987,6 +1000,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_compile_sft(args)
     if args.command == "audit-store":
         return _cmd_audit_store(args)
+    if args.command == "resolve-entities":
+        return _cmd_resolve_entities(args)
+    if args.command == "compile-graph-instructions":
+        return _cmd_compile_graph_instructions(args)
     parser.print_help()
     return 1
 
@@ -1327,6 +1344,47 @@ def _cmd_audit_store(args) -> int:
         print(f"  * {tier}: {count}")
     print(f"\nMissing SVO Fields: {report['missing_fields_count']}")
     print(f"Duplicate SVO Triplets: {report['duplicate_svo_count']}")
+    return 0
+
+
+def _cmd_resolve_entities(args) -> int:
+    """Perform entity resolution and merge synonym nodes in the Kùzu graph."""
+    import sys
+    try:
+        from .graph_store_factory import get_graph_store
+        from .entity_resolution import resolve_and_merge_entities
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    kstore = get_graph_store(args.graph_db)
+    try:
+        res = resolve_and_merge_entities(kstore, threshold=args.threshold)
+        print("Entity Resolution Complete:")
+        print(f"  - Resolved clusters: {res['resolved_clusters']}")
+        print(f"  - Merged redundant nodes: {res['merged_nodes']}")
+    finally:
+        kstore.close()
+    return 0
+
+
+def _cmd_compile_graph_instructions(args) -> int:
+    """Compile multi-hop relationship chains from the graph into SFT instructions."""
+    import sys
+    try:
+        from .graph_store_factory import get_graph_store
+        from .graph_compiler import compile_subgraph_instructions, save_compiled_instructions
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    kstore = get_graph_store(args.graph_db)
+    try:
+        instructions = compile_subgraph_instructions(kstore, max_chains=args.max_chains)
+        save_compiled_instructions(instructions, args.output)
+        print(f"Successfully compiled {len(instructions)} graph-walk instructions to {args.output}")
+    finally:
+        kstore.close()
     return 0
 
 
