@@ -48,3 +48,11 @@ class TestMLXTrainer(unittest.TestCase):
                 code = main()
                 self.assertEqual(code, 0)
                 mock_train.assert_called_once_with(iters=5, batch_size=4, lr=1e-05, num_layers=16)
+
+    def test_cli_train_sft_routing(self):
+        with patch("sys.argv", ["knowledgereduce", "train-sft", "--dataset", "dummy_train.jsonl", "--dry-run"]):
+            with patch("scripts.train_sft.main") as mock_train:
+                mock_train.return_value = 0
+                code = main()
+                self.assertEqual(code, 0)
+                mock_train.assert_called_once()

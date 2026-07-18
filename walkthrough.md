@@ -174,6 +174,13 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🚂 PyTorch Supervised Fine-Tuning CLI Command (`train-sft`)
+
+* **Subcommand**: `knowledgereduce train-sft --dataset <path> [--base-model <Qwen/Qwen2.5-7B-Instruct>] [--output-dir <path>] [--epochs <1>] [--batch-size <1>] [--grad-accum <8>] [--lr <2e-4>] [--dry-run]`.
+* **Behavior**: Invokes cross-platform, CUDA-enabled supervised fine-tuning using PyTorch, Hugging Face PEFT/LoRA, and TRL. Enables full training capability on Linux systems and GPU servers directly from the CLI.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 331 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 332 TEST CASES PASSED SUCCESSFULLY (100% green)**

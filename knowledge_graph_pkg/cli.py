@@ -334,6 +334,23 @@ def _build_parser() -> argparse.ArgumentParser:
     tm.add_argument("--dry-run", action="store_true",
                     help="Validate dataset + print the command, then exit.")
 
+    ts = sub.add_parser("train-sft",
+                        help="Fine-tune a model using PyTorch, Hugging Face PEFT, and TRL (for CUDA/Linux/GPUs).")
+    ts.add_argument("--dataset", required=True, help="Prepared chat-JSONL dataset.")
+    ts.add_argument("--base-model", default="Qwen/Qwen2.5-7B-Instruct",
+                    help="Hugging Face repo or local path to base model.")
+    ts.add_argument("--output-dir", default="./lora-out",
+                    help="Output directory for adapters (default: ./lora-out).")
+    ts.add_argument("--epochs", type=int, default=1, help="Number of training epochs (default: 1).")
+    ts.add_argument("--batch-size", type=int, default=1, help="Batch size per device (default: 1).")
+    ts.add_argument("--grad-accum", type=int, default=8, help="Gradient accumulation steps (default: 8).")
+    ts.add_argument("--lr", type=float, default=2e-4, help="Learning rate (default: 2e-4).")
+    ts.add_argument("--lora-r", type=int, default=16, help="LoRA rank parameter (default: 16).")
+    ts.add_argument("--lora-alpha", type=int, default=32, help="LoRA alpha parameter (default: 32).")
+    ts.add_argument("--max-seq-len", type=int, default=1024, help="Max sequence length (default: 1024).")
+    ts.add_argument("--dry-run", action="store_true",
+                    help="Validate dataset + print training configuration, then exit.")
+
     au = sub.add_parser("audit-store",
                         help="Perform diagnostic quality audits on the knowledge store.")
     au.add_argument("--store", default="store", help="Path to knowledge store (default: store).")
@@ -1026,6 +1043,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_distill_ontology(args)
     if args.command == "query-graph":
         return _cmd_query_graph(args)
+    if args.command == "train-sft":
+        return _cmd_train_sft(args)
     parser.print_help()
     return 1
 
@@ -1499,6 +1518,26 @@ def _cmd_query_graph(args) -> int:
     finally:
         kstore.close()
     return 0
+
+
+def _cmd_train_sft(args) -> int:
+    """Run supervised fine-tuning using PyTorch, PEFT, and TRL."""
+    from scripts import train_sft
+    argv = [
+        "--dataset", args.dataset,
+        "--base-model", args.base_model,
+        "--output-dir", args.output_dir,
+        "--epochs", str(args.epochs),
+        "--batch-size", str(args.batch_size),
+        "--grad-accum", str(args.grad_accum),
+        "--lr", str(args.lr),
+        "--lora-r", str(args.lora_r),
+        "--lora-alpha", str(args.lora_alpha),
+        "--max-seq-len", str(args.max_seq_len)
+    ]
+    if args.dry_run:
+        argv.append("--dry-run")
+    return train_sft.main(argv)
 
 
 if __name__ == "__main__":
