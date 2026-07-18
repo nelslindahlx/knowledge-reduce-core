@@ -2,6 +2,10 @@
 
 We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI), as well as **Finalizing Phase II Milestones** (Agent Integration Examples, Weighted Consensus, and JWT Auth/workspace segregation).
 
+In this latest step, we resolved additional architectural constraints highlighted by critical review:
+* **Dynamic Neo4j Multi-Database Parsing**: Enabled routing multi-tenant query requests to independent Neo4j database sessions by extracting target database names from the scheme URIs (e.g. `bolt://host:port/database_name` or via query param `?database=database_name`).
+* **Pronoun Object Heuristics**: Upgraded the rule-based offline critique parser to inspect both the Subject and Object elements, rejecting statements with pronoun objects (e.g., `"them"`, `"it"`) to preserve absolute fact independence.
+
 ---
 
 ## 📋 Store Audit Diagnostics (`audit-store`)
@@ -23,7 +27,7 @@ To support fully offline operations without remote API keys, we built an offline
 * **Module**: [critique.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/critique.py).
 * **Fallback Routing**: If `FactCritic` is instantiated with `--backend none` (or if external client connections fail), it automatically routes validations through rule-based heuristics.
 * **Validation Rules**:
-  * **Pronoun Subjects**: Automatically flags facts with pronoun subjects (`he`, `she`, `it`, `they`, `this`, `that`, etc.) as non-factual (`UNVERIFIED`), preventing bad coreferenced facts from entering training sets.
+  * **Pronoun Subject/Object**: Automatically flags facts with pronoun subjects or objects (`he`, `she`, `it`, `they`, `this`, `that`, `them`, `these`, `those`) as non-factual (`UNVERIFIED`), preventing bad coreferenced facts from entering training sets.
   * **Stub / Empty Fields**: Rejects statements under 5 characters or those containing empty SVO components.
   * **Redundancies**: Flags SVO statements where components are identical (e.g. subject == predicate).
 
@@ -52,11 +56,11 @@ To expose the repository's native capabilities directly as a Hermes/Antigravity 
 
 ---
 
-## ⚙️ Automated Github Actions CI Validation
+## ⚙️ Dynamic Neo4j URI Parsing & Session Routing
 
-We established automated gating checks to guarantee versioning and skill completeness on future commits:
-* **CI Workflow**: [.github/workflows/skill-validation.yml](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.github/workflows/skill-validation.yml).
-* **Validation Tests**: [test_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_skill.py) verifying frontmatter schemas, checking YAML validity, and asserting package/skill version alignment.
+We implemented a robust connection string parser to dynamically extract database names:
+* **Module**: [graph_store_factory.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_store_factory.py) & [neo4j_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/neo4j_store.py).
+* **Workspace Isolation**: Dynamic workspace names are securely appended as path elements to the base URI (e.g. `bolt://host:port/workspace_name`). The parser automatically cleans the connection URI for driver handshake and maps the workspace segment to Neo4j's native session database parameters.
 
 ---
 
@@ -74,4 +78,4 @@ To achieve absolute 100% completion of the Phase II roadmap, we implemented the 
 
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 313 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 315 TEST CASES PASSED SUCCESSFULLY (100% green)**

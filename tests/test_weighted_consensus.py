@@ -53,3 +53,17 @@ class TestWeightedConsensus(unittest.TestCase):
         cluster = report["clusters"][0]
         self.assertEqual(cluster["reliability"], "VERIFIED")
         self.assertEqual(cluster["cross_model_agreement"], 2)
+
+    def test_graph_store_factory_parsing(self):
+        from unittest.mock import patch
+        with patch("knowledge_graph_pkg.neo4j_store.Neo4jStore") as mock_neo4j:
+            from knowledge_graph_pkg.graph_store_factory import get_graph_store
+            
+            # 1. Parse database name from query string parameter
+            get_graph_store("bolt://user1:pass2@localhost:7687?database=db1")
+            mock_neo4j.assert_called_with("bolt://user1:pass2@localhost:7687", user="user1", password="pass2", database="db1")
+            
+            # 2. Parse database name from path segment
+            get_graph_store("neo4j://user3:pass4@host:9999/db2")
+            mock_neo4j.assert_called_with("neo4j://user3:pass4@host:9999", user="user3", password="pass4", database="db2")
+

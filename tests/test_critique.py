@@ -68,6 +68,19 @@ class TestFactCritic(unittest.TestCase):
         self.assertFalse(report["is_factual"])
         self.assertIn("Pronoun subject", report["reasoning"])
 
+    def test_heuristic_critique_pronoun_object(self):
+        critic = FactCritic("none")
+        fact = {
+            "subject": "Fire",
+            "predicate": "heats",
+            "object": "them",
+            "statement": "Fire heats them.",
+            "fact_id": "f_pronoun_obj"
+        }
+        report = critic.critique_fact(fact)
+        self.assertFalse(report["is_factual"])
+        self.assertIn("Pronoun object", report["reasoning"])
+
     def test_heuristic_critique_stub_or_empty(self):
         critic = FactCritic("none")
         # Empty fields

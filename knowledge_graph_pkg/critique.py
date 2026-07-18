@@ -83,12 +83,14 @@ class FactCritic:
         stmt = statement.strip()
         
         pronouns = {"he", "she", "it", "they", "this", "that", "them", "these", "those"}
-        if subj in pronouns:
+        if subj in pronouns or obj in pronouns:
+            rejected_term = fact.get("subject") if subj in pronouns else fact.get("object")
+            role = "subject" if subj in pronouns else "object"
             return {
                 "block_id": fact.get("block_id") or fact.get("fact_id"),
                 "statement": stmt,
                 "is_factual": False,
-                "reasoning": f"Rejected by heuristic: Pronoun subject '{fact.get('subject')}' violates fact independence.",
+                "reasoning": f"Rejected by heuristic: Pronoun {role} '{rejected_term}' violates fact independence.",
                 "confidence_score": 0.95
             }
             

@@ -16,7 +16,7 @@ def _s(v: Any) -> str:
 class Neo4jStore(BaseGraphStore):
     """Neo4j cloud/server graph store of distilled facts (Cypher-queryable)."""
 
-    def __init__(self, uri: str, user: str = "neo4j", password: str = "password", **kwargs):
+    def __init__(self, uri: str, user: str = "neo4j", password: str = "password", database: Optional[str] = None, **kwargs):
         try:
             from neo4j import GraphDatabase
         except ImportError:
@@ -26,6 +26,7 @@ class Neo4jStore(BaseGraphStore):
         self._uri = uri
         self._user = kwargs.get("username", user)
         self._password = password
+        self._database = database
         self.driver = GraphDatabase.driver(self._uri, auth=(self._user, self._password))
         self._init_constraints()
 
@@ -79,7 +80,10 @@ class Neo4jStore(BaseGraphStore):
 
     def query(self, cypher: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Execute a Cypher query on the Neo4j database."""
-        with self.driver.session() as session:
+        session_kwargs = {}
+        if getattr(self, "_database", None):
+            session_kwargs["database"] = self._database
+        with self.driver.session(**session_kwargs) as session:
             result = session.run(cypher, params or {})
             return [record.data() for record in result]
 

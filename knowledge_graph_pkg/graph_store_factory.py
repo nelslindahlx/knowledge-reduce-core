@@ -11,6 +11,19 @@ def get_graph_store(connection_string: str) -> BaseGraphStore:
     conn_lower = connection_string.lower()
     if conn_lower.startswith(("bolt://", "neo4j://", "neo4j+s://", "neo4j+ssc://")):
         from .neo4j_store import Neo4jStore
-        return Neo4jStore(connection_string)
+        from urllib.parse import urlparse, parse_qs
+        
+        parsed = urlparse(connection_string)
+        query_params = parse_qs(parsed.query)
+        db_name = query_params.get("database", [None])[0]
+        
+        if not db_name and parsed.path and parsed.path != "/":
+            db_name = parsed.path.lstrip("/")
+            
+        clean_uri = f"{parsed.scheme}://{parsed.netloc}"
+        user = parsed.username or "neo4j"
+        password = parsed.password or "password"
+        
+        return Neo4jStore(clean_uri, user=user, password=password, database=db_name)
     else:
         return KuzuStore(connection_string)

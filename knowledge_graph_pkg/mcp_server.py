@@ -898,18 +898,21 @@ def make_fastapi_app(tools: Any) -> Any:
         if workspace_id not in workspace_tools:
             from .graph_store_factory import get_graph_store
             from .graph_tool import GraphTools
+            from .neo4j_store import Neo4jStore
             
-            # Extract database path or URL from the store
-            db_path = getattr(tools.store, "db_path", None)
-            if not isinstance(db_path, str):
-                db_path = getattr(tools.store, "url", "graph_db")
-            if not isinstance(db_path, str):
-                db_path = "graph_db"
-                
-            if "/" in db_path or "\\" in db_path or db_path == "local_path":
-                ws_path = os.path.join(os.path.dirname(db_path), f"graph_db_{workspace_id}")
+            if isinstance(tools.store, Neo4jStore):
+                ws_path = f"{tools.store._uri}/{workspace_id}"
             else:
-                ws_path = f"{db_path}_{workspace_id}"
+                db_path = getattr(tools.store, "db_path", None)
+                if not isinstance(db_path, str):
+                    db_path = getattr(tools.store, "_uri", "graph_db")
+                if not isinstance(db_path, str):
+                    db_path = "graph_db"
+                    
+                if "/" in db_path or "\\" in db_path or db_path == "local_path":
+                    ws_path = os.path.join(os.path.dirname(db_path), f"graph_db_{workspace_id}")
+                else:
+                    ws_path = f"{db_path}_{workspace_id}"
                 
             workspace_tools[workspace_id] = GraphTools(get_graph_store(ws_path))
         return workspace_tools[workspace_id]
