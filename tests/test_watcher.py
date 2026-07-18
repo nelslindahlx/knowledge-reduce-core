@@ -234,3 +234,68 @@ class TestWatcherDaemon(unittest.TestCase):
             else:
                 os.remove(daemon.graph_db)
 
+    @patch("knowledge_graph_pkg.watcher.batch_drop")
+    def test_watcher_daemon_distill_pipeline(self, mock_batch_drop):
+        import shutil
+        import json
+        watch_dir = "test_watch_d"
+        store_dir = "test_store_d"
+        db_log = "test_watcher_d.db"
+        graph_db = "test_graph_db_d"
+        distill_dir = "test_distill_d"
+        
+        daemon = WatcherDaemon(
+            watch_dir=watch_dir, 
+            store_dir=store_dir, 
+            db_log_path=db_log, 
+            graph_db=graph_db,
+            distill_dir=distill_dir
+        )
+        
+        mock_batch_drop.return_value = {
+            "dropped": 1,
+            "errors": 0,
+            "items": [{
+                "status": "success",
+                "facts": [{
+                    "subject": "ATP",
+                    "predicate": "is a",
+                    "object": "ChemicalCompound",
+                    "statement": "ATP is a ChemicalCompound.",
+                    "domain": "biochemistry",
+                    "reliability": "VERIFIED",
+                    "agreement": 3,
+                    "quality": 1
+                }]
+            }]
+        }
+        
+        os.makedirs(watch_dir, exist_ok=True)
+        test_file = os.path.join(watch_dir, "test.txt")
+        with open(test_file, "w") as f:
+            f.write("Some text content")
+            
+        daemon.process_file(test_file)
+        
+        # Verify distilled ontology exists
+        summary_path = os.path.join(distill_dir, "ontology_summary.json")
+        self.assertTrue(os.path.isfile(summary_path))
+        
+        with open(summary_path, "r") as f:
+            summary = json.load(f)
+            self.assertIn("taxonomy", summary)
+            self.assertIn("semantic_types", summary)
+            self.assertIn("relation_schema", summary)
+            
+        # Clean up
+        os.remove(test_file)
+        os.remove(db_log)
+        os.rmdir(watch_dir)
+        os.rmdir(store_dir)
+        shutil.rmtree(distill_dir)
+        if os.path.exists(daemon.graph_db):
+            if os.path.isdir(daemon.graph_db):
+                shutil.rmtree(daemon.graph_db)
+            else:
+                os.remove(daemon.graph_db)
+

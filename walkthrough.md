@@ -143,6 +143,13 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## ⚡ Active Watcher-Driven Ontology Distillation
+
+* **Auto-Distillation in WatcherDaemon**: Added `--distill-dir` option to the daemon. Whenever new files are dropped into the watched directory and processed, the daemon automatically runs taxonomic and schema distillation, updating `ontology_summary.json` instantly on disk.
+* **Test Verification**: Created `test_watcher_daemon_distill_pipeline` in `tests/test_watcher.py` verifying automated file writes and structure assertions.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 323 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 324 TEST CASES PASSED SUCCESSFULLY (100% green)**

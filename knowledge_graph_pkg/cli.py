@@ -245,6 +245,7 @@ def _build_parser() -> argparse.ArgumentParser:
                     default="likely_true", help="Min reliability threshold (default: likely_true).")
     wd.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
     wd.add_argument("--graph-db", default=None, help="Optional path to a Kùzu graph database to update in real-time.")
+    wd.add_argument("--distill-dir", default=None, help="Optional output directory to save distilled ontology reports.")
 
     co = sub.add_parser("consensus",
                         help="Ingest a document using multiple engines, load into graph, and reconcile contradictions.")
@@ -1074,7 +1075,8 @@ def _cmd_watch_daemon(args) -> int:
         filter_name=args.filter,
         coref=args.coref,
         engine=args.engine,
-        graph_db=args.graph_db
+        graph_db=args.graph_db,
+        distill_dir=args.distill_dir
     )
     try:
         watcher.run()

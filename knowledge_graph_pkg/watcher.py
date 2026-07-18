@@ -11,7 +11,8 @@ class WatcherDaemon:
 
     def __init__(self, watch_dir: str, store_dir: str, db_log_path: str = "watcher_state.db",
                  reliability: str = "likely_true", filter_name: str = "standard",
-                 coref: bool = False, engine: str = "svo", graph_db: Optional[str] = None):
+                 coref: bool = False, engine: str = "svo", graph_db: Optional[str] = None,
+                 distill_dir: Optional[str] = None):
         try:
             from watchdog.observers import Observer
             from watchdog.events import FileSystemEventHandler
@@ -28,6 +29,7 @@ class WatcherDaemon:
         self.coref = coref
         self.engine = engine
         self.graph_db = os.path.abspath(graph_db) if graph_db else None
+        self.distill_dir = os.path.abspath(distill_dir) if distill_dir else None
 
         # Ensure directories exist
         os.makedirs(self.watch_dir, exist_ok=True)
@@ -158,6 +160,30 @@ class WatcherDaemon:
                                 
                                 print("[Watcher] Running path validation and contradiction reconciliation...")
                                 kstore.validate_and_reconcile()
+                                
+                                if self.distill_dir:
+                                    print(f"[Watcher] Distilling ontology to: {self.distill_dir}")
+                                    try:
+                                        from .ontology import OntologyDistiller
+                                        import json
+                                        os.makedirs(self.distill_dir, exist_ok=True)
+                                        distiller = OntologyDistiller(kstore)
+                                        taxonomy = distiller.distill_taxonomy()
+                                        types = distiller.infer_semantic_types()
+                                        schema = distiller.infer_relation_schema()
+                                        
+                                        summary = {
+                                            "taxonomy": taxonomy,
+                                            "semantic_types": types,
+                                            "relation_schema": schema
+                                        }
+                                        
+                                        out_path = os.path.join(self.distill_dir, "ontology_summary.json")
+                                        with open(out_path, "w", encoding="utf-8") as fh:
+                                            json.dump(summary, fh, indent=2)
+                                        print(f"[Watcher] Saved distilled ontology to {out_path}")
+                                    except Exception as d_exc:
+                                        print(f"[Watcher] Ontology distillation failed: {d_exc}")
                         finally:
                             kstore.close()
                     except Exception as g_exc:
