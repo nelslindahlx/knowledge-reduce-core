@@ -37,6 +37,19 @@ _AGREEMENT_RELIABILITY = {
 _VERIFIED = "VERIFIED"
 
 
+MODEL_CAPABILITY_WEIGHTS = {
+    "gemini-1.5-pro": 3.0,
+    "gpt-4": 3.0,
+    "claude-3-5-sonnet": 3.0,
+    "gemini-1.5-flash": 2.0,
+    "gpt-3.5-turbo": 1.5,
+    "qwen2.5-14b": 2.0,
+    "llama3-8b": 1.5,
+    "qwen2.5-3b": 1.0,
+    "qwen2.5-0.5b": 0.5,
+}
+
+
 def _norm(s: Any) -> str:
     return " ".join(str(s or "").lower().split())
 
@@ -51,11 +64,31 @@ def jaccard(a: str, b: str) -> float:
     return len(wa & wb) / len(wa | wb)
 
 
-def reliability_for_agreement(n_models: int) -> str:
-    """Map a distinct-model agreement count to a reliability rating."""
-    if n_models >= 3:
+def reliability_for_agreement(n_models: int, models: Optional[List[str]] = None) -> str:
+    """Map a distinct-model agreement count or weighted model list to a reliability rating."""
+    if not models:
+        if n_models >= 3:
+            return _VERIFIED
+        return _AGREEMENT_RELIABILITY.get(max(n_models, 0), "UNVERIFIED")
+
+    total_weight = 0.0
+    for m in models:
+        weight = 1.0
+        ml = m.lower()
+        for name, w in MODEL_CAPABILITY_WEIGHTS.items():
+            if name == ml or (len(ml) > 1 and ml in name):
+                weight = w
+                break
+        total_weight += weight
+
+    if total_weight >= 3.0:
         return _VERIFIED
-    return _AGREEMENT_RELIABILITY.get(max(n_models, 0), "UNVERIFIED")
+    elif total_weight >= 1.5:
+        return "LIKELY_TRUE"
+    elif total_weight >= 0.5:
+        return "POSSIBLY_TRUE"
+    return "UNVERIFIED"
+
 
 
 def cluster_facts(facts: List[Dict[str, Any]],
@@ -188,7 +221,7 @@ class CrossModelVerifier:
         for cl in clusters:
             models = sorted({f["_model"] for f in cl})
             n = len(models)
-            reliability = reliability_for_agreement(n)
+            reliability = reliability_for_agreement(n, models=models)
             if reliability == _VERIFIED:
                 verified += 1
             elif reliability == "LIKELY_TRUE":

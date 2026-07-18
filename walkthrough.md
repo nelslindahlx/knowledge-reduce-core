@@ -1,6 +1,6 @@
-# Walkthrough: Store Audit, Heuristic Critique, Test Resilience, & Hermes Skill Packaging
+# Walkthrough: Store Audit, Heuristic Critique, Test Resilience, & Phase II Finalization
 
-We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI).
+We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI), as well as **Finalizing Phase II Milestones** (Agent Integration Examples, Weighted Consensus, and JWT Auth/workspace segregation).
 
 ---
 
@@ -60,6 +60,18 @@ We established automated gating checks to guarantee versioning and skill complet
 
 ---
 
+## 🔌 Finalizing Phase II Milestones (Scaling & Agents)
+
+To achieve absolute 100% completion of the Phase II roadmap, we implemented the final scaling features:
+1. **Agent Integration Examples**:
+   * [examples/agent_integration.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/examples/agent_integration.py) containing copy-pasteable blueprints for LangChain Custom Tools and LlamaIndex QueryEngine.
+2. **Capability-Weighted Consensus**:
+   * Evaluates consensus clusters in [cross_model.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cross_model.py) using source model weight values (e.g. Gemini Pro / GPT-4 = 3.0, small Qwen models = 0.5) to dynamically assign fact reliability levels based on source reasoning quality.
+3. **JWT Auth & Dynamic Workspace Segmentation**:
+   * Refactored [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py) to validate HTTP Bearer JWT tokens via FastAPI `Depends` and partition graph database connections dynamically based on the incoming `X-Workspace-Id` header.
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 311 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 313 TEST CASES PASSED SUCCESSFULLY (100% green)**

@@ -156,4 +156,28 @@ def test_fastapi_endpoints():
     assert response.json()["ok"] is True
     assert mock_store.query.called
 
+    # 6. Test JWT Token Authentication and Workspace Segregation
+    import os
+    os.environ["MCP_JWT_SECRET"] = "secret_token_123"
+    try:
+        app_secured = make_fastapi_app(MockTools())
+        client_secured = TestClient(app_secured)
+        
+        response = client_secured.get("/tools")
+        assert response.status_code == 401
+        
+        headers = {"Authorization": "Bearer secret_token_123"}
+        response = client_secured.get("/tools", headers=headers)
+        assert response.status_code == 200
+        
+        headers_ws = {
+            "Authorization": "Bearer secret_token_123",
+            "X-Workspace-Id": "my_tenant"
+        }
+        response = client_secured.get("/api/graph", headers=headers_ws)
+        assert response.status_code == 200
+    finally:
+        del os.environ["MCP_JWT_SECRET"]
+
+
 

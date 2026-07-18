@@ -865,10 +865,12 @@ def make_handler(tools: Any) -> Any:
 
 def make_fastapi_app(tools: Any) -> Any:
     """Create a FastAPI application serving the visual dashboard and tool endpoints."""
-    from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+    import os
+    from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Security, Depends
     from fastapi.responses import HTMLResponse, JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
-    from typing import Set
+    from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+    from typing import Set, Dict, Optional
     
     app = FastAPI(title="KnowledgeReduce API Gateway")
     
@@ -880,19 +882,54 @@ def make_fastapi_app(tools: Any) -> Any:
         allow_headers=["*"],
     )
 
+    security = HTTPBearer(auto_error=False)
+    workspace_tools: Dict[str, Any] = {}
+
+    async def verify_token(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)):
+        secret = os.environ.get("MCP_JWT_SECRET")
+        if not secret:
+            return
+        if not credentials or credentials.credentials != secret:
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing bearer token")
+
+    def get_tools_for_workspace(workspace_id: str) -> Any:
+        if not workspace_id or workspace_id == "default":
+            return tools
+        if workspace_id not in workspace_tools:
+            from .graph_store_factory import get_graph_store
+            from .graph_tool import GraphTools
+            
+            # Extract database path or URL from the store
+            db_path = getattr(tools.store, "db_path", None)
+            if not db_path:
+                db_path = getattr(tools.store, "url", "graph_db")
+                
+            if "/" in db_path or "\\" in db_path or db_path == "local_path":
+                ws_path = os.path.join(os.path.dirname(db_path), f"graph_db_{workspace_id}")
+            else:
+                ws_path = f"{db_path}_{workspace_id}"
+                
+            workspace_tools[workspace_id] = GraphTools(get_graph_store(ws_path))
+        return workspace_tools[workspace_id]
+
+    def get_workspace_id(request: Request) -> str:
+        return request.headers.get("x-workspace-id", "default")
+
     active_websockets: Set[WebSocket] = set()
 
-    @app.get("/tools")
+    @app.get("/tools", dependencies=[Depends(verify_token)])
     async def get_tools():
         return {"tools": list_tools()}
 
-    @app.post("/tools/call")
+    @app.post("/tools/call", dependencies=[Depends(verify_token)])
     async def post_tools_call(request: Request):
         try:
             req = await request.json()
         except Exception:
             return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON"})
-        out = handle_tool_call(tools, req.get("name", ""), req.get("arguments", {}))
+        workspace_id = get_workspace_id(request)
+        ws_tools = get_tools_for_workspace(workspace_id)
+        out = handle_tool_call(ws_tools, req.get("name", ""), req.get("arguments", {}))
         return JSONResponse(status_code=200 if out.get("ok") else 400, content=out)
 
     @app.get("/", response_class=HTMLResponse)
@@ -900,23 +937,26 @@ def make_fastapi_app(tools: Any) -> Any:
     async def get_dashboard():
         return DASHBOARD_HTML
 
-    @app.get("/api/graph")
-    async def get_api_graph():
+    @app.get("/api/graph", dependencies=[Depends(verify_token)])
+    async def get_api_graph(request: Request):
         try:
-            nodes = tools.store.query(
+            workspace_id = get_workspace_id(request)
+            ws_tools = get_tools_for_workspace(workspace_id)
+            nodes = ws_tools.store.query(
                 "MATCH (f:Fact) "
                 "RETURN f.block_id AS block_id, f.statement AS statement, f.subject AS subject, "
                 "f.predicate AS predicate, f.object AS object, f.domain AS domain, "
                 "f.reliability AS reliability, f.agreement AS agreement, f.quality AS quality, "
                 "f.source_models AS source_models"
             )
-            edges = tools.store.query(
+            edges = ws_tools.store.query(
                 "MATCH (a:Fact)-[r:RELATED]->(b:Fact) "
                 "RETURN a.block_id AS from_id, b.block_id AS to_id, r.predicate AS predicate, r.weight AS weight"
             )
             return {"nodes": nodes, "edges": edges}
         except Exception as exc:
             return JSONResponse(status_code=500, content={"error": str(exc)})
+
 
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket):
@@ -956,11 +996,13 @@ def make_fastapi_app(tools: Any) -> Any:
             
         return {"status": "broadcasted", "recipients": len(active_websockets)}
 
-    @app.delete("/api/facts/{block_id}")
-    async def delete_fact(block_id: str):
+    @app.delete("/api/facts/{block_id}", dependencies=[Depends(verify_token)])
+    async def delete_fact(block_id: str, request: Request):
         try:
-            if hasattr(tools, "store") and hasattr(tools.store, "query"):
-                tools.store.query("MATCH (f:Fact) WHERE f.block_id = $bid DETACH DELETE f", {"bid": block_id})
+            workspace_id = get_workspace_id(request)
+            ws_tools = get_tools_for_workspace(workspace_id)
+            if hasattr(ws_tools, "store") and hasattr(ws_tools.store, "query"):
+                ws_tools.store.query("MATCH (f:Fact) WHERE f.block_id = $bid DETACH DELETE f", {"bid": block_id})
             
             # Broadcast the pruning event to active WebSocket visual clients
             closed_sockets = set()
