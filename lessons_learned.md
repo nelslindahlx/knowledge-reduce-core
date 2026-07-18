@@ -55,3 +55,33 @@ Running the full test suite in one go executes all 30 test files, including data
   * **Stage 3**: Persistent DB / Lifecycle
   * **Stage 4**: Model Probing & Evaluation
 * This keeps feedback loops extremely fast and prevents test fatigue.
+
+---
+
+## 6. Mocking Optional/Heavy Python Packages in Tests
+
+### Context
+When testing pluggable backends (Llama.cpp, OpenAI SDK, SentenceTransformers) and watcher daemons (Watchdog), the test execution environment did not have these heavy optional packages installed. Using standard `@patch` failed because patch attempts to resolve and inspect the modules.
+### Lesson Learned
+* Prior to test execution or module imports, dummy mocks can be injected directly into `sys.modules` (e.g. `sys.modules['llama_cpp'] = MagicMock()`).
+* This permits modules containing imports like `from llama_cpp import Llama` to load successfully and allows us to verify logic paths and factory constructors cleanly without actually installing the underlying libraries in the test pipeline.
+
+---
+
+## 7. Cypher Operator Compliance in KùzuDB
+
+### Context
+When implementing active contradiction and transitive inference loops on KuzuStore, standard Python inequality `!=` was used in `WHERE` clauses. This resulted in `RuntimeError: Parser exception: Unknown operation '!='`.
+### Lesson Learned
+* KùzuDB enforces strict standard Cypher syntax. Unlike Python or other SQL databases, Cypher does not recognize `!=` as an inequality operator.
+* The correct Cypher operator for inequality testing is `<>`. Replacing all occurrences of `!=` with `<>` in the Cypher strings resolved the parse errors instantly.
+
+---
+
+## 8. Testable HTTP Server Design with Request Factories
+
+### Context
+We wanted to write unit tests for the MCP HTTP server's new dashboard routes (GET `/` and `/api/graph`). Since the handler class definition was previously nested inside a blocking `serve()` method, it could not be imported or run in unit tests.
+### Lesson Learned
+* Nesting request handlers inside blocking loops blocks testability.
+* Refactoring the server to use a class factory `make_handler(tools)` pulls the `Handler` definition out of the blocking socket server. This lets tests instantiate the handler class directly, attach mock reader/writer files (`wfile`, `rfile`), and test request routing (`do_GET()`, `do_POST()`) cleanly without spawning live socket servers.
