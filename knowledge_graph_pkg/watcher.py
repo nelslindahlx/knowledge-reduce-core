@@ -37,8 +37,16 @@ class WatcherDaemon:
 
         self._init_db()
 
+    def _connect_db(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_log_path, timeout=5.0)
+        try:
+            conn.execute("PRAGMA journal_mode=WAL;")
+        except Exception:
+            pass
+        return conn
+
     def _init_db(self):
-        conn = sqlite3.connect(self.db_log_path)
+        conn = self._connect_db()
         try:
             with conn:
                 conn.execute(
@@ -53,7 +61,7 @@ class WatcherDaemon:
             conn.close()
 
     def log_file_state(self, file_path: str, mtime: float, status: str, error: Optional[str] = None):
-        conn = sqlite3.connect(self.db_log_path)
+        conn = self._connect_db()
         try:
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             with conn:
@@ -66,7 +74,7 @@ class WatcherDaemon:
             conn.close()
 
     def should_process(self, file_path: str, mtime: float) -> bool:
-        conn = sqlite3.connect(self.db_log_path)
+        conn = self._connect_db()
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT last_modified, status FROM watched_files WHERE file_path = ?", (file_path,))
@@ -156,7 +164,13 @@ class WatcherDaemon:
                                 kstore.auto_link_relations()
                                 
                                 print("[Watcher] Running graph entity resolution...")
-                                resolve_and_merge_entities(kstore)
+                                new_concepts = []
+                                for ni in formatted_items:
+                                    if ni.get("subject"):
+                                        new_concepts.append(ni["subject"])
+                                    if ni.get("object"):
+                                        new_concepts.append(ni["object"])
+                                resolve_and_merge_entities(kstore, limit_to_concepts=new_concepts)
                                 
                                 print("[Watcher] Running path validation and contradiction reconciliation...")
                                 kstore.validate_and_reconcile()

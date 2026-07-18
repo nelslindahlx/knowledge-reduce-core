@@ -5,25 +5,37 @@ Extracts concept class hierarchies and aggregates instance-level facts
 into high-level relationship schemas.
 """
 
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 from .graph_store_base import BaseGraphStore
 
 class OntologyDistiller:
     """Analyze a facts graph to distill a high-level concept taxonomy and relationship schema."""
 
-    def __init__(self, store: BaseGraphStore):
+    def __init__(self, store: BaseGraphStore, rules: Optional[Dict[str, Any]] = None):
         self.store = store
+        
+        # Default heuristics rules
+        self.rules = {
+            "process_suffixes": ["ation", "ing", "sis", "process"],
+            "entity_outgoing_predicates": ["produces", "fuels", "synthesizes", "contains", "causes", "produce"],
+            "location_incoming_predicates": ["is located in", "is part of", "occurs in", "located in", "part of"],
+            "attribute_outgoing_predicates": ["is", "has", "exhibits"],
+            "taxonomy_predicates": ["is a", "type of", "subclass of", "is a type of"]
+        }
+        if rules:
+            self.rules.update(rules)
 
     def distill_taxonomy(self) -> Dict[str, List[str]]:
         """Extract taxonomic hierarchies from 'is a' / 'type of' facts.
         
         Returns a dictionary mapping parent classes to child classes.
         """
-        # Query subclass/instance relations
+        # Query subclass/instance relations securely using parameterized query
         subclasses = self.store.query(
             "MATCH (a:Fact) "
-            "WHERE lower(a.predicate) IN ['is a', 'type of', 'subclass of', 'is a type of'] "
-            "RETURN a.subject AS child, a.object AS parent"
+            "WHERE lower(a.predicate) IN $predicates "
+            "RETURN a.subject AS child, a.object AS parent",
+            {"predicates": [p.lower() for p in self.rules["taxonomy_predicates"]]}
         )
         
         taxonomy: Dict[str, List[str]] = {}
@@ -64,23 +76,21 @@ class OntologyDistiller:
             
         semantic_types: Dict[str, str] = {}
         for concept, preds in concept_predicates.items():
-            # Heuristics
             concept_lower = concept.lower()
-            if (concept_lower.endswith("ation") or 
-                concept_lower.endswith("ing") or 
-                concept_lower.endswith("sis") or
-                concept_lower.endswith("process")):
+            
+            # Suffix checks
+            if any(concept_lower.endswith(sfx) for sfx in self.rules["process_suffixes"]):
                 semantic_types[concept] = "PROCESS"
                 continue
                 
             out_preds = {p.split(":", 1)[1] for p in preds if p.startswith("out:")}
             in_preds = {p.split(":", 1)[1] for p in preds if p.startswith("in:")}
             
-            if any(p in out_preds for p in ["produces", "fuels", "synthesizes", "contains", "causes", "produce"]):
+            if any(p in out_preds for p in self.rules["entity_outgoing_predicates"]):
                 semantic_types[concept] = "ENTITY"
-            elif any(p in in_preds for p in ["is located in", "is part of", "occurs in", "located in", "part of"]):
+            elif any(p in in_preds for p in self.rules["location_incoming_predicates"]):
                 semantic_types[concept] = "LOCATION"
-            elif any(p in out_preds for p in ["is", "has", "exhibits"]):
+            elif any(p in out_preds for p in self.rules["attribute_outgoing_predicates"]):
                 semantic_types[concept] = "ATTRIBUTE"
             else:
                 semantic_types[concept] = "CONCEPT"

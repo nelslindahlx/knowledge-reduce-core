@@ -1114,8 +1114,18 @@ def make_fastapi_app(tools: Any) -> Any:
         secret = os.environ.get("MCP_JWT_SECRET")
         if not secret:
             return
-        if not credentials or credentials.credentials != secret:
-            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing bearer token")
+        if not credentials:
+            raise HTTPException(status_code=401, detail="Unauthorized: missing bearer token")
+            
+        token = credentials.credentials
+        try:
+            import jwt
+            jwt.decode(token, secret, algorithms=["HS256", "HS384", "HS512"])
+            return
+        except Exception:
+            if token == secret:
+                return
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid token signature or expired claim")
 
     def get_tools_for_workspace(workspace_id: str) -> Any:
         if not workspace_id or workspace_id == "default":

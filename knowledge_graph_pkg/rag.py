@@ -142,6 +142,22 @@ class GraphRAGRetriever:
         # Compute Page-Rank scores for the network
         pr_scores = self.calculate_pagerank()
 
+        # Identify subject-object pairs that have conflicting predicates in the database
+        conflicted_pairs = set()
+        try:
+            conflicts = self.store.query(
+                "MATCH (a:Fact), (b:Fact) "
+                "WHERE a.subject = b.subject AND a.object = b.object AND a.predicate <> b.predicate "
+                "RETURN a.subject AS subject, a.object AS object"
+            )
+            for c in conflicts:
+                s = str(c.get("subject", "")).lower().strip()
+                o = str(c.get("object", "")).lower().strip()
+                if s and o:
+                    conflicted_pairs.add((s, o))
+        except Exception:
+            pass
+
         # Multi-hop traversal (up to hops)
         current_level = list(seeds)
         for h in range(hops):
@@ -160,6 +176,12 @@ class GraphRAGRetriever:
                         {"bid": node["block_id"]}
                     )
                     for r in related:
+                        # Prune walk if this edge represents an active contradiction
+                        s = str(r.get("subject", "")).lower().strip()
+                        o = str(r.get("object", "")).lower().strip()
+                        if (s, o) in conflicted_pairs or (o, s) in conflicted_pairs:
+                            continue
+                            
                         if r["block_id"] not in retrieved_ids:
                             retrieved_ids.add(r["block_id"])
                             results.append(r)

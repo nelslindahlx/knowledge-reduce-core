@@ -80,7 +80,7 @@ We built a multi-hop graph walker to generate reasoning instructions from struct
 
 We implemented a robust connection string parser to dynamically extract database names:
 * **Module**: [graph_store_factory.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_store_factory.py) & [neo4j_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/neo4j_store.py).
-* **Workspace Isolation**: Dynamic workspace names are securely appended as path elements to the base URI (e.g. `bolt://host:port/workspace_name`). The parser automatically cleans the connection URI for driver handshake and maps the workspace segment to Neo4j's native session database parameters.
+* **Workspace Isolation**: Workspace names are securely parsed from URI parameters or paths to establish isolated Neo4j database sessions dynamically.
 
 ---
 
@@ -150,6 +150,16 @@ We implemented a robust connection string parser to dynamically extract database
 
 ---
 
+## 🛠️ Phase II Hardening & Optimizations
+
+* **SQLite WAL & Concurrency Resilience**: Connected with WAL journal mode and busy timeouts in [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py), preventing SQLite db locks.
+* **Cryptographic JWT Signature Verification**: Added `PyJWT` validations for signatures and expirations (`exp`) in [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py).
+* **Incremental Overlapping Prefix Blocking Entity Resolution**: Optimized [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py) Jaccard clustering using overlapping prefix blocking and scope limits.
+* **Configurable Ontology Heuristics**: Enabled dynamic taxonomy predicate and categorization configurations in [ontology.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/ontology.py) with parameterized queries.
+* **Conflict-Aware RAG Path Pruning**: Prunes multi-hop paths traversing edges involved in active conflicts in [rag.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/rag.py).
+
+---
+
 ## 🧪 Verification Results
 
-* **Execution Status**: **ALL 324 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 329 TEST CASES PASSED SUCCESSFULLY (100% green)**

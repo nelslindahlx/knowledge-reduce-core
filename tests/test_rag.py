@@ -168,4 +168,29 @@ class TestGraphRAGRetriever(unittest.TestCase):
         tool_names = [t["name"] for t in TOOL_SCHEMAS]
         self.assertIn("graph_rag_retrieve", tool_names)
 
+    def test_conflict_aware_pruning(self):
+        mock_store = MagicMock()
+        def mock_query(cypher, params=None):
+            # Return active conflict between Mitochondria and ATP
+            if "MATCH (a:Fact), (b:Fact)" in cypher:
+                return [{"subject": "Mitochondria", "object": "ATP"}]
+            if "MATCH (f:Fact)" in cypher and "f.statement" in cypher:
+                return [
+                    {"block_id": "b1", "statement": "Mitochondria produces ATP", "subject": "Mitochondria", "predicate": "produces", "object": "ATP", "reliability": "VERIFIED"}
+                ]
+            if "MATCH (a:Fact)-[r:RELATED]-(b:Fact)" in cypher:
+                return [
+                    {"block_id": "b2", "statement": "Mitochondria produces ATP", "subject": "Mitochondria", "predicate": "produces", "object": "ATP", "reliability": "VERIFIED"}
+                ]
+            return []
+            
+        mock_store.query.side_effect = mock_query
+        retriever = GraphRAGRetriever(store=mock_store)
+        
+        # Walk should prune b2 because Mitochondria -> ATP is in active conflict
+        results = retriever.retrieve("Mitochondria", top_k=2, hops=1)
+        bids = [r["block_id"] for r in results]
+        self.assertIn("b1", bids)
+        self.assertNotIn("b2", bids)
+
 

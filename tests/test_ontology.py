@@ -91,3 +91,29 @@ class TestOntologyDistiller(unittest.TestCase):
             if s["subject_type"] == "ENTITY" and s["predicate"] == "produces" and s["object_type"] == "CONCEPT":
                 has_produces = True
         self.assertTrue(has_produces)
+
+    def test_custom_rules_override(self):
+        facts = [
+            {
+                "subject": "Respiration",
+                "predicate": "part_of_pathway",
+                "object": "Metabolism",
+                "fact_statement": "Respiration is part_of_pathway Metabolism.",
+                "domain": "biochemistry",
+                "reliability_rating": "VERIFIED",
+                "cross_model_agreement": 3,
+                "quality_score": 1,
+                "source_models": "gpt-4"
+            }
+        ]
+        self.store.ingest_facts(facts)
+
+        # 1. Custom taxonomy predicate 'part_of_pathway'
+        custom_rules = {
+            "taxonomy_predicates": ["part_of_pathway"]
+        }
+        distiller = OntologyDistiller(self.store, rules=custom_rules)
+        taxonomy = distiller.distill_taxonomy()
+        
+        self.assertIn("Metabolism", taxonomy)
+        self.assertIn("Respiration", taxonomy["Metabolism"])

@@ -187,6 +187,30 @@ def test_fastapi_endpoints():
         response = client_secured.get("/api/schema", headers=headers_ws)
         assert response.status_code == 200
         assert "schema" in response.json()
+
+        # 9. Test actual signed JWT validation using HS256
+        import jwt
+        import time
+        
+        # A. Valid token signed with correct secret and expires in 1 hour
+        payload_valid = {"exp": int(time.time()) + 3600}
+        token_valid = jwt.encode(payload_valid, "secret_token_123", algorithm="HS256")
+        headers_jwt = {"Authorization": f"Bearer {token_valid}"}
+        response = client_secured.get("/tools", headers=headers_jwt)
+        assert response.status_code == 200
+        
+        # B. Expired token signed with correct secret
+        payload_expired = {"exp": int(time.time()) - 3600}
+        token_expired = jwt.encode(payload_expired, "secret_token_123", algorithm="HS256")
+        headers_expired = {"Authorization": f"Bearer {token_expired}"}
+        response = client_secured.get("/tools", headers=headers_expired)
+        assert response.status_code == 401
+        
+        # C. Token signed with incorrect secret
+        token_wrong_secret = jwt.encode(payload_valid, "wrong_secret_key", algorithm="HS256")
+        headers_wrong = {"Authorization": f"Bearer {token_wrong_secret}"}
+        response = client_secured.get("/tools", headers=headers_wrong)
+        assert response.status_code == 401
     finally:
         del os.environ["MCP_JWT_SECRET"]
 
