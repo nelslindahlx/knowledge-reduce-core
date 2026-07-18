@@ -322,7 +322,19 @@ def test_query_graph_cli(tmp_path, monkeypatch):
 def test_test_drive_cli(monkeypatch):
     from unittest.mock import patch
     with patch("scripts.test_drive.main") as mock_test_drive:
-        mock_test_drive.return_value = None
-        rc = main(["test-drive"])
-        assert rc == 0
-        mock_test_drive.assert_called_once()
+        with patch("scripts.download_and_crawl.main") as mock_download_and_crawl:
+            mock_test_drive.return_value = None
+            mock_download_and_crawl.return_value = None
+            
+            # 1. Base test-drive command
+            rc = main(["test-drive"])
+            assert rc == 0
+            mock_test_drive.assert_called_once()
+            mock_download_and_crawl.assert_not_called()
+            
+            # 2. Test-drive with crawling command
+            mock_test_drive.reset_mock()
+            rc = main(["test-drive", "--crawl"])
+            assert rc == 0
+            mock_test_drive.assert_called_once()
+            mock_download_and_crawl.assert_called_once()

@@ -357,6 +357,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     td = sub.add_parser("test-drive",
                         help="Run a quick end-to-end smoke test verifying extraction, consensus, graph ingestion, and Graph-RAG.")
+    td.add_argument("--crawl", action="store_true",
+                    help="Also run local GGUF model download and weight crawling verification.")
 
     qg = sub.add_parser("query-graph",
                         help="Run interactive or one-shot Graph-RAG queries over the graph store.")
@@ -1550,6 +1552,9 @@ def _cmd_test_drive(args) -> int:
     from scripts import test_drive
     try:
         test_drive.main()
+        if args.crawl:
+            from scripts import download_and_crawl
+            download_and_crawl.main()
         return 0
     except Exception as exc:
         import sys
