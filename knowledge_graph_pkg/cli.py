@@ -230,6 +230,25 @@ def _build_parser() -> argparse.ArgumentParser:
                     choices=["unverified", "possibly_true", "likely_true", "verified"],
                     default=None, help="Drop records below this reliability tier.")
     pr.add_argument("--stats", action="store_true", help="Print dataset stats after prep.")
+
+    tm = sub.add_parser("train-mlx",
+                        help="Fine-tune a model locally on Apple Silicon using MLX-LM.")
+    tm.add_argument("--dataset", required=True, help="Prepared chat-JSONL dataset.")
+    tm.add_argument("--base-model", default="mlx-community/Qwen2.5-3B-Instruct-4bit",
+                    help="Hugging Face ID or local path to base model / mlx-quantized model.")
+    tm.add_argument("--adapter-path", default="./adapters",
+                    help="Directory to save the resulting LoRA adapters (default: ./adapters).")
+    tm.add_argument("--iters", type=int, default=600,
+                    help="Number of training iterations (default: 600).")
+    tm.add_argument("--batch-size", type=int, default=4,
+                    help="Training batch size (default: 4).")
+    tm.add_argument("--lr", type=float, default=1e-5,
+                    help="Learning rate (default: 1e-5).")
+    tm.add_argument("--lora-layers", type=int, default=16,
+                    help="Number of layers to apply LoRA to (default: 16).")
+    tm.add_argument("--dry-run", action="store_true",
+                    help="Validate dataset + print the command, then exit.")
+
     return parser
 
 
@@ -807,6 +826,23 @@ def _cmd_model_prep(args) -> int:
     return 0
 
 
+def _cmd_train_mlx(args) -> int:
+    """Fine-tune a model locally on Apple Silicon using MLX-LM."""
+    from scripts import train_mlx
+    argv = [
+        "--dataset", args.dataset,
+        "--base-model", args.base_model,
+        "--adapter-path", args.adapter_path,
+        "--iters", str(args.iters),
+        "--batch-size", str(args.batch_size),
+        "--lr", str(args.lr),
+        "--lora-layers", str(args.lora_layers)
+    ]
+    if args.dry_run:
+        argv.append("--dry-run")
+    return train_mlx.main(argv)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """CLI entrypoint. Returns a process exit code."""
     parser = _build_parser()
@@ -839,6 +875,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_serve_mcp(args)
     if args.command == "model-prep":
         return _cmd_model_prep(args)
+    if args.command == "train-mlx":
+        return _cmd_train_mlx(args)
     parser.print_help()
     return 1
 
