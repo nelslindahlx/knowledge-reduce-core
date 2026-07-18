@@ -1,6 +1,6 @@
-# Walkthrough: Store Audit, Heuristic Critique, & Test Resilience
+# Walkthrough: Store Audit, Heuristic Critique, Test Resilience, & Hermes Skill Packaging
 
-We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique) and **Phase 9** (Test Resilience & conftest configuration) of the Strategic Improvement Master Plan.
+We have successfully implemented **Phase 7** (Store Audit & Heuristic Critique), **Phase 9** (Test Resilience & conftest configuration), and **Phases 8 & 10 & 11** (Hermes Hardening, Actionable Tool Surface, and Skill Packaging Validation CI).
 
 ---
 
@@ -38,9 +38,28 @@ To ensure developers and CI/CD pipelines can run the test suite cleanly on minim
 
 ---
 
+## 📦 Hermes Skill Packaging & Tool Surface
+
+To expose the repository's native capabilities directly as a Hermes/Antigravity coding skill, we hardened the skill configuration and registry:
+* **Canonical Skill Manifest**: [.agents/skills/knowledge-reduce-core/SKILL.md](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills/knowledge-reduce-core/SKILL.md).
+* **Enriched Metadata**:
+  * Frontmatter categories, environment variables, commands, and platforms.
+  * Detailed `## Tool surface` mapping the package's python entrypoints and command-line subcommands.
+  * Actionable `## Hermes prompt patterns` with template request/response schemas for distilling, dropping, and auditing facts.
+  * Explicit `## Safety/timeout defaults`.
+* **Registry mapping**: Linked in [.agents/skills.json](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills.json).
+* **Bootstrap validation script**: [scripts/smoke_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/scripts/smoke_skill.py) verifying version alignment, importability, store auditing, and critique fallbacks.
+
+---
+
+## ⚙️ Automated Github Actions CI Validation
+
+We established automated gating checks to guarantee versioning and skill completeness on future commits:
+* **CI Workflow**: [.github/workflows/skill-validation.yml](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.github/workflows/skill-validation.yml).
+* **Validation Tests**: [test_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_skill.py) verifying frontmatter schemas, checking YAML validity, and asserting package/skill version alignment.
+
+---
+
 ## 🧪 Verification Results
 
-* **New Test Suites**:
-  * [test_audit.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_audit.py): Validates diagnostic calculations and CLI command executions.
-  * Added 4 unit test cases in [test_critique.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_critique.py) covering pronoun subject detection, stub failures, identical SVO term rejections, and valid statements.
-* **Execution Status**: **ALL 309 TEST CASES PASSED SUCCESSFULLY (100% green)**
+* **Execution Status**: **ALL 311 TEST CASES PASSED SUCCESSFULLY (100% green)**
