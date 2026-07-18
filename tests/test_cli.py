@@ -347,3 +347,25 @@ def test_run_suite_cli(monkeypatch):
         rc = main(["run-suite", "--stage", "1", "--verbose"])
         assert rc == 0
         mock_run_suite.assert_called_once_with(["--stage", "1", "--verbose"])
+
+
+def test_skill_install_cli(monkeypatch):
+    from unittest.mock import patch
+    with patch("scripts.mirror_skill.main") as mock_mirror:
+        with patch("scripts.smoke_skill.run_smoke_tests") as mock_smoke:
+            mock_mirror.return_value = 0
+            mock_smoke.return_value = 0
+            
+            # 1. Base install and verify
+            rc = main(["skill-install"])
+            assert rc == 0
+            mock_mirror.assert_called_once()
+            mock_smoke.assert_called_once()
+            
+            # 2. Verify only
+            mock_mirror.reset_mock()
+            mock_smoke.reset_mock()
+            rc = main(["skill-install", "--verify-only"])
+            assert rc == 0
+            mock_mirror.assert_not_called()
+            mock_smoke.assert_called_once()

@@ -366,6 +366,11 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="Select execution stage: 1 (Fast Core), 2 (Semantic), 3 (DB/Integration), 4 (LLM/Eval), all.")
     rs.add_argument("--verbose", action="store_true", help="Display pytest verbose logging output.")
 
+    si = sub.add_parser("skill-install",
+                        help="Install and verify the local Hermes skill manifest into the user's ~/.hermes directory.")
+    si.add_argument("--verify-only", action="store_true",
+                    help="Only run importability and version smoke validation without copying files.")
+
     qg = sub.add_parser("query-graph",
                         help="Run interactive or one-shot Graph-RAG queries over the graph store.")
     qg.add_argument("query", help="The natural-language question or key terms to retrieve paths for.")
@@ -1060,6 +1065,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_test_drive(args)
     if args.command == "run-suite":
         return _cmd_run_suite(args)
+    if args.command == "skill-install":
+        return _cmd_skill_install(args)
     parser.print_help()
     return 1
 
@@ -1586,6 +1593,16 @@ def _cmd_run_suite(args) -> int:
         import sys
         print(f"Error running test suite stage: {exc}", file=sys.stderr)
         return 1
+
+
+def _cmd_skill_install(args) -> int:
+    """Install and verify the Hermes coding skill manifest."""
+    from scripts import mirror_skill, smoke_skill
+    if not args.verify_only:
+        rc = mirror_skill.main()
+        if rc != 0:
+            return rc
+    return smoke_skill.run_smoke_tests()
 
 
 if __name__ == "__main__":
