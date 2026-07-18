@@ -52,6 +52,8 @@ mlx = ["mlx-lm>=0.20.0"]
 llama-cpp = ["llama-cpp-python>=0.2.0"]
 openai = ["openai>=1.0.0"]
 sentence-transformers = ["sentence-transformers>=2.2.0"]
+# Watcher daemon
+watcher = ["watchdog>=3.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/nelslindahlx/Hermes-Output"

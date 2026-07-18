@@ -233,6 +233,18 @@ def _build_parser() -> argparse.ArgumentParser:
     gr.add_argument("--op", choices=["link", "contradictions", "transitive", "validate"],
                     required=True, help="Graph reasoning operation to perform.")
 
+    wd = sub.add_parser("watch-daemon",
+                        help="Start a directory watcher daemon to automatically distill and ingest documents.")
+    wd.add_argument("--dir", default="data/ingest_watch", help="Directory to watch (default: data/ingest_watch).")
+    wd.add_argument("--store", default="store", help="Knowledge store directory (default: store).")
+    wd.add_argument("--db-log", default="watcher_state.db", help="Path to SQLite watcher log database.")
+    wd.add_argument("--engine", choices=["svo", "spacy"], default="svo",
+                    help="Extraction engine (default: svo).")
+    wd.add_argument("--coref", action="store_true", help="Enable pronoun coreference resolution.")
+    wd.add_argument("--min-reliability", choices=["verified", "likely_true", "possibly_true", "unverified"],
+                    default="likely_true", help="Min reliability threshold (default: likely_true).")
+    wd.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
+
     sm = sub.add_parser("serve-mcp",
                         help="Serve the graph as LLM-callable tools over HTTP+JSON.")
     sm.add_argument("--graph-db", default="graph_db", help="KùzuDB path (default graph_db).")
@@ -903,6 +915,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_train_mlx(args)
     if args.command == "graph-reason":
         return _cmd_graph_reason(args)
+    if args.command == "watch-daemon":
+        return _cmd_watch_daemon(args)
     parser.print_help()
     return 1
 
@@ -946,6 +960,30 @@ def _cmd_graph_reason(args) -> int:
                 print(f"  - [{d['block_id']}] {d['statement']}")
     finally:
         kstore.close()
+    return 0
+
+
+def _cmd_watch_daemon(args) -> int:
+    """Start the directory watcher daemon."""
+    try:
+        from .watcher import WatcherDaemon
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    watcher = WatcherDaemon(
+        watch_dir=args.dir,
+        store_dir=args.store,
+        db_log_path=args.db_log,
+        reliability=args.min_reliability,
+        filter_name=args.filter,
+        coref=args.coref,
+        engine=args.engine
+    )
+    try:
+        watcher.run()
+    except KeyboardInterrupt:
+        print("\nWatcher daemon stopped.")
     return 0
 
 
