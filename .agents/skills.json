@@ -1,0 +1,9 @@
+{
+  "skills": [
+    {
+      "name": "knowledge-reduce-core",
+      "canonical_path": ".agents/skills/knowledge-reduce-core/SKILL.md",
+      "is_active": true
+    }
+  ]
+}

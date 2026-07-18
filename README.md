@@ -85,6 +85,12 @@ Core install is pure-Python and dependency-light:
 pip install -e .
 ```
 
+Hermes-enabled install with optional runtime helpers:
+
+```bash
+pip install -e ".[hermes]"
+```
+
 
 ## Quick Start
 

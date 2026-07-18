@@ -34,6 +34,11 @@ To set up a local development workspace, execute the following:
    .venv/bin/python3 -m spacy download en_core_web_sm
    ```
 
+5. **Install the Hermes skill**:
+   ```bash
+   python3 scripts/mirror_skill.py
+   ```
+
 ---
 
 ## 🧪 2. Testing Guidelines & Stage-Based Verification
