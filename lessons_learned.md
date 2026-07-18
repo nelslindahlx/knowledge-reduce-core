@@ -85,3 +85,34 @@ We wanted to write unit tests for the MCP HTTP server's new dashboard routes (GE
 ### Lesson Learned
 * Nesting request handlers inside blocking loops blocks testability.
 * Refactoring the server to use a class factory `make_handler(tools)` pulls the `Handler` definition out of the blocking socket server. This lets tests instantiate the handler class directly, attach mock reader/writer files (`wfile`, `rfile`), and test request routing (`do_GET()`, `do_POST()`) cleanly without spawning live socket servers.
+
+---
+
+## 9. Bridging Document Drops and Model Probes in Distillation
+
+### Context
+When using `ConsensusEngine` to validate facts extracted from documents, `ModelKnowledgeDistiller` would filter out all facts. This occurred because `ModelKnowledgeDistiller` only includes facts carrying a `model_provenance` block to prevent cross-contamination, but standard document-extracted facts lack this metadata.
+### Lesson Learned
+* Bridging different fact sources is crucial for unified pipeline operations.
+* Injecting a synthetic `model_provenance` metadata block mapping the extraction engine (e.g. `svo`, `spacy`) to the fact before passing it to `ModelKnowledgeDistiller` resolves the issue. This allows standard document-extracted drops to be clustered, deduplicated, and ranked using the exact same consensus rules as model-probe drops.
+
+---
+
+## 10. KùzuDB Database Lock and File-vs-Directory Cleanups
+
+### Context
+In automated scripts and test cleanups, invoking `shutil.rmtree` on a KùzuDB database path often failed with `NotADirectoryError: [Errno 20] Not a directory` because KùzuDB sometimes creates a flat file instead of a directory structure depending on the environment and active locks.
+### Lesson Learned
+* Startup/cleanup utilities must handle graph database paths dynamically.
+* Wrapping database cleanups with a check (`os.path.isdir(path)`) to selectively run `shutil.rmtree` or `os.remove` prevents execution errors and ensures clean teardown.
+
+---
+
+## 11. Model Weight Entropy Profiling via Logprobs
+
+### Context
+When recursively crawling a model's latent weights, models can generate hallucinations or highly uncertain statements. We needed a statistical method to filter these out.
+### Lesson Learned
+* Requesting token logprobs in GGUF completions (via `logprobs=True`) and remote APIs, and calculating the mathematical average log-probability of the generated text, provides a direct confidence score.
+* Filtering out generated facts whose average logprobs fall below a strict threshold (e.g. `-1.5`) successfully prunes highly uncertain or hallucinated factual branches from the graph.
+

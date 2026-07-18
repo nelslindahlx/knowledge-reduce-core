@@ -70,8 +70,44 @@ class GraphRAGRetriever:
         scored_kw.sort(key=lambda x: x[0], reverse=True)
         return [item[1] for item in scored_kw[:limit]]
 
-    def retrieve(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """Perform hybrid retrieval: get seed facts, then traverse their connected graph paths."""
+    def calculate_pagerank(self) -> Dict[str, float]:
+        """Load all facts and relationships from Kuzu DB into a NetworkX DiGraph
+        and compute Page-Rank scores for all facts."""
+        import networkx as nx
+        try:
+            # 1. Retrieve all facts (nodes)
+            facts = self.store.query("MATCH (f:Fact) RETURN f.block_id AS block_id")
+            # 2. Retrieve all relationships (edges)
+            edges = self.store.query(
+                "MATCH (a:Fact)-[r:RELATED]->(b:Fact) "
+                "RETURN a.block_id AS src, b.block_id AS dst"
+            )
+        except Exception as exc:
+            print(f"[RAG] Page-Rank calculation failed to query DB: {exc}")
+            return {}
+
+        graph = nx.DiGraph()
+        for f in facts:
+            if "block_id" in f:
+                graph.add_node(f["block_id"])
+        for e in edges:
+            if isinstance(e, dict) and "src" in e and "dst" in e:
+                graph.add_edge(e["src"], e["dst"])
+
+        if len(graph) == 0:
+            return {}
+
+        try:
+            return nx.pagerank(graph, alpha=0.85)
+        except Exception:
+            return {node: 1.0 / len(graph) for node in graph.nodes}
+
+    def retrieve(self, query: str, top_k: int = 5, hops: int = 2, pagerank_weight: float = 0.3) -> List[Dict[str, Any]]:
+        """Perform hybrid multi-hop retrieval:
+        1. Retrieve seed facts.
+        2. Traverse multi-hop paths to find adjacent facts.
+        3. Score and rank all candidate facts using both semantic similarity and Page-Rank importance.
+        """
         seeds = self.retrieve_seeds(query, limit=top_k)
         if not seeds:
             return []
@@ -79,30 +115,75 @@ class GraphRAGRetriever:
         retrieved_ids = {s["block_id"] for s in seeds}
         results = list(seeds)
 
-        # For each seed, traverse adjacent related facts in Kuzu DB
-        for s in seeds:
+        # Compute Page-Rank scores for the network
+        pr_scores = self.calculate_pagerank()
+
+        # Multi-hop traversal (up to hops)
+        current_level = list(seeds)
+        for h in range(hops):
+            next_level = []
+            for node in current_level:
+                try:
+                    related = self.store.query(
+                        "MATCH (a:Fact)-[r:RELATED]-(b:Fact) "
+                        "WHERE a.block_id = $bid "
+                        "RETURN b.block_id AS block_id, b.statement AS statement, "
+                        "b.subject AS subject, b.predicate AS predicate, b.object AS object, "
+                        "b.reliability AS reliability, b.quality AS quality",
+                        {"bid": node["block_id"]}
+                    )
+                    for r in related:
+                        if r["block_id"] not in retrieved_ids:
+                            retrieved_ids.add(r["block_id"])
+                            results.append(r)
+                            next_level.append(r)
+                except Exception:
+                    pass
+            current_level = next_level
+
+        # Calculate final hybrid rankings
+        scored_results = []
+        query_vec = None
+        if self.embedder:
             try:
-                related = self.store.query(
-                    "MATCH (a:Fact)-[r:RELATED]-(b:Fact) "
-                    "WHERE a.block_id = $bid "
-                    "RETURN b.block_id AS block_id, b.statement AS statement, "
-                    "b.subject AS subject, b.predicate AS predicate, b.object AS object, "
-                    "b.reliability AS reliability, b.quality AS quality, "
-                    "r.predicate AS rel_predicate",
-                    {"bid": s["block_id"]}
-                )
-                for r in related:
-                    if r["block_id"] not in retrieved_ids:
-                        retrieved_ids.add(r["block_id"])
-                        results.append(r)
+                query_vec = self.embedder.embed_one(query)
             except Exception:
                 pass
 
-        return results
+        for f in results:
+            bid = f["block_id"]
+            pr_val = pr_scores.get(bid, 0.0)
 
-    def format_context(self, query: str, top_k: int = 5) -> str:
+            # Max Page-Rank normalization to scale to [0, 1] range
+            max_pr = max(pr_scores.values()) if pr_scores else 1.0
+            norm_pr = pr_val / max_pr if max_pr > 0 else 0.0
+
+            # Semantic similarity score
+            sim = 0.0
+            if self.embedder and query_vec:
+                try:
+                    stmt_vec = self.embedder.embed_one(f.get("statement", ""))
+                    sim = cosine_similarity(query_vec, stmt_vec)
+                except Exception:
+                    pass
+            else:
+                # String matching fallback
+                words = [w.lower() for w in query.split() if len(w) > 2]
+                if words:
+                    matches = sum(1 for w in words if w in f.get("statement", "").lower())
+                    sim = min(1.0, matches / len(words))
+
+            # Combine similarity and Page-Rank
+            hybrid_score = (1.0 - pagerank_weight) * sim + pagerank_weight * norm_pr
+            scored_results.append((hybrid_score, f))
+
+        # Sort by hybrid score descending
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+        return [item[1] for item in scored_results[:top_k * 2]]
+
+    def format_context(self, query: str, top_k: int = 5, hops: int = 2) -> str:
         """Format the retrieved graph context as a markdown block for LLM prompts."""
-        facts = self.retrieve(query, top_k=top_k)
+        facts = self.retrieve(query, top_k=top_k, hops=hops)
         if not facts:
             return "No relevant facts found in the knowledge graph."
 

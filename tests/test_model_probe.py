@@ -77,3 +77,37 @@ def test_live_ollama_probe_smoke():
                               n_prompts=2, schema=PROBE_OUTPUT_SCHEMA, seed=42)
     assert len(outs) == 2
     assert all("structured_response" in o for o in outs)
+
+
+def test_gemini_backend_interface():
+    import sys
+    from unittest.mock import MagicMock
+    
+    mock_genai = MagicMock()
+    mock_model_inst = MagicMock()
+    mock_response = MagicMock()
+    mock_response.text = '{"facts": [{"subject": "A", "predicate": "B", "object": "C"}]}'
+    mock_model_inst.generate_content.return_value = mock_response
+    mock_genai.GenerativeModel.return_value = mock_model_inst
+    
+    sys.modules["google.generativeai"] = mock_genai
+    
+    from knowledge_graph_pkg.model_probe import GeminiBackend
+    try:
+        backend = GeminiBackend(model="gemini-1.5-flash", api_key="dummy-key")
+        assert backend.model == "gemini-1.5-flash"
+        
+        # 1. Test generate_structured
+        res = backend.generate_structured("Explain X", schema={})
+        assert "facts" in res
+        assert res["facts"][0]["subject"] == "A"
+        
+        # 2. Test generate_text_with_logprobs
+        mock_response.text = "This is text"
+        text, logprob = backend.generate_text_with_logprobs("Explain Y")
+        assert text == "This is text"
+        assert logprob == 0.0
+    finally:
+        if "google.generativeai" in sys.modules:
+            del sys.modules["google.generativeai"]
+

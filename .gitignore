@@ -5,3 +5,10 @@ __pycache__/
 .coverage
 .pytest_cache/
 htmlcov/
+*.gguf
+qwen_crawled_store/
+test_drive_store/
+test_drive_graph/
+graph_db/
+store/
+

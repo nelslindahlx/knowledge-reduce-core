@@ -138,7 +138,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mp.add_argument("--store", default="store", help="Knowledge store directory.")
     mp.add_argument("--n-prompts", type=int, default=10,
                     help="Prompts per (model, domain) (default 10).")
-    mp.add_argument("--backend", choices=["ollama", "llama-cpp", "openai"], default="ollama",
+    mp.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini"], default="ollama",
                     help="Probe backend (default: ollama).")
     mp.add_argument("--model-path", help="Path to local GGUF model file (llama-cpp backend).")
     mp.add_argument("--api-key", help="API key (openai backend).")
@@ -256,6 +256,21 @@ def _build_parser() -> argparse.ArgumentParser:
     co.add_argument("--min-reliability", choices=["verified", "likely_true", "possibly_true", "unverified"],
                     default="likely_true", help="Min reliability threshold (default: likely_true).")
     co.add_argument("--filter", default="standard", help="Fact quality filter name (default: standard).")
+
+    cr = sub.add_parser("crawl",
+                        help="Recursively crawl a model backend's weights starting from a seed topic.")
+    cr.add_argument("--seed", required=True, help="Seed topic to start the crawl.")
+    cr.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini"], default="ollama",
+                    help="Probing backend (default: ollama).")
+    cr.add_argument("--model", required=True, help="Model name or GGUF model path.")
+    cr.add_argument("--max-depth", type=int, default=2, help="Max recursion depth (default: 2).")
+    cr.add_argument("--concepts-per-level", type=int, default=3,
+                    help="Max new concepts to queue per level (default: 3).")
+    cr.add_argument("--logprob-threshold", type=float, default=-1.5,
+                    help="Min token log probability threshold (default: -1.5).")
+    cr.add_argument("--store", default="store", help="Knowledge store directory (default: store).")
+    cr.add_argument("--engine", choices=["svo", "spacy"], default="svo",
+                    help="Extraction engine (default: svo).")
 
     tr = sub.add_parser("train",
                         help="Perform local LoRA fine-tuning on Apple Silicon via mlx-lm.")
@@ -943,6 +958,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_consensus(args)
     if args.command == "train":
         return _cmd_train(args)
+    if args.command == "crawl":
+        return _cmd_crawl(args)
     parser.print_help()
     return 1
 
@@ -1069,6 +1086,58 @@ def _cmd_train(args) -> int:
     except Exception as exc:
         print(f"error during training: {exc}", file=sys.stderr)
         return 4
+    return 0
+
+
+def _cmd_crawl(args) -> int:
+    """Run model weight crawler."""
+    try:
+        from .model_probe import get_backend
+        from .crawler import ModelCrawler
+        from .store import KnowledgeStore, Drop, content_hash
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    try:
+        backend = get_backend(args.backend, model=args.model, model_path=args.model)
+    except Exception as exc:
+        print(f"error instantiating backend: {exc}", file=sys.stderr)
+        return 4
+
+    crawler = ModelCrawler(backend=backend)
+    try:
+        facts = crawler.crawl(
+            seed_topic=args.seed,
+            max_depth=args.max_depth,
+            concepts_per_level=args.concepts_per_level,
+            logprob_threshold=args.logprob_threshold,
+            engine=args.engine
+        )
+        if not facts:
+            print("Crawl complete: no facts extracted.")
+            return 0
+
+        store = KnowledgeStore(args.store)
+        text_summary = "\n".join(f.get("fact_statement", "") for f in facts)
+        src_hash = content_hash(text_summary)
+        
+        drop_id = f"crawl-{args.seed.replace(' ', '_').lower()}-{src_hash[:12]}"
+        drop = Drop(
+            drop_id=drop_id,
+            source=f"model-crawl:{args.seed}",
+            source_hash=src_hash,
+            facts=facts,
+            engine=args.engine,
+            filter_name="none",
+            coref=False,
+            source_text=text_summary
+        )
+        shard = store.write_drop(drop)
+        print(f"Saved {len(facts)} crawled facts into store drop shard: {shard}")
+    except Exception as exc:
+        print(f"error during crawl: {exc}", file=sys.stderr)
+        return 5
     return 0
 
 

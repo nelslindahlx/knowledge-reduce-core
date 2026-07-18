@@ -111,3 +111,42 @@ def test_handler_dashboard_and_api():
     h.path = "/invalid-path"
     h.do_GET()
     assert h.response_code == 404
+
+
+def test_fastapi_endpoints():
+    from fastapi.testclient import TestClient
+    from knowledge_graph_pkg.mcp_server import make_fastapi_app
+    from unittest.mock import MagicMock
+    
+    mock_store = MagicMock()
+    mock_store.query.return_value = [{"block_id": "b1", "statement": "Fact statement"}]
+    
+    class MockTools:
+        store = mock_store
+        
+        def graph_query(self, cypher, limit=100):
+            return [{"echo": cypher}]
+            
+    app = make_fastapi_app(MockTools())
+    client = TestClient(app)
+    
+    # 1. Test GET /tools
+    response = client.get("/tools")
+    assert response.status_code == 200
+    assert "tools" in response.json()
+    
+    # 2. Test GET /dashboard
+    response = client.get("/dashboard")
+    assert response.status_code == 200
+    assert b"<!DOCTYPE html>" in response.content
+    
+    # 3. Test GET /api/graph
+    response = client.get("/api/graph")
+    assert response.status_code == 200
+    assert "nodes" in response.json()
+    
+    # 4. Test POST /tools/call
+    response = client.post("/tools/call", json={"name": "graph_query", "arguments": {"cypher": "MATCH (n) RETURN n"}})
+    assert response.status_code == 200
+    assert response.json()["ok"] is True
+

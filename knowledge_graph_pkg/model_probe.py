@@ -68,6 +68,20 @@ class OllamaBackend:
         except (json.JSONDecodeError, TypeError):
             return {"facts": []}
 
+    def generate_text_with_logprobs(self, prompt: str, **gen_kwargs) -> tuple:
+        """Generate text and return the generated text along with its average log probability."""
+        response = self.client.generate(
+            model=self.model,
+            prompt=prompt,
+            options={
+                "temperature": gen_kwargs.get("temperature", 0.3),
+                "top_p": gen_kwargs.get("top_p", 0.9),
+                "num_predict": gen_kwargs.get("max_tokens", 512),
+            },
+        )
+        text = response["response"] if isinstance(response, dict) else response.response
+        return text, 0.0
+
 
 class ModelProbe:
     """Probe a model for structured facts across a domain."""
@@ -150,6 +164,28 @@ class LlamaCppBackend:
         except Exception:
             return {"facts": []}
 
+    def generate_text_with_logprobs(self, prompt: str, **gen_kwargs) -> tuple:
+        """Generate text and return the generated text along with its average log probability."""
+        try:
+            response = self.client.create_chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=gen_kwargs.get("temperature", 0.3),
+                top_p=gen_kwargs.get("top_p", 0.9),
+                max_tokens=gen_kwargs.get("max_tokens", 512),
+                logprobs=True
+            )
+            text = response["choices"][0]["message"]["content"]
+            logprobs = response["choices"][0].get("logprobs", {})
+            token_logprobs = []
+            if isinstance(logprobs, dict):
+                token_logprobs = logprobs.get("token_logprobs", [])
+                if not token_logprobs and "content" in logprobs:
+                    token_logprobs = [item.get("logprob", 0.0) for item in (logprobs["content"] or [])]
+            avg_logprob = sum(token_logprobs) / len(token_logprobs) if token_logprobs else 0.0
+            return text, avg_logprob
+        except Exception:
+            return "", 0.0
+
 
 class OpenAICompatibleBackend:
     """Remote API probing (OpenAI, Anthropic, Cohere, local vLLM)."""
@@ -190,6 +226,27 @@ class OpenAICompatibleBackend:
         except Exception:
             return {"facts": []}
 
+    def generate_text_with_logprobs(self, prompt: str, **gen_kwargs) -> tuple:
+        """Generate text and return the generated text along with its average log probability."""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=gen_kwargs.get("temperature", 0.3),
+                top_p=gen_kwargs.get("top_p", 0.9),
+                max_tokens=gen_kwargs.get("max_tokens", 512),
+                logprobs=True
+            )
+            text = response.choices[0].message.content
+            logprobs_content = getattr(getattr(response.choices[0], "logprobs", None), "content", None)
+            token_logprobs = []
+            if logprobs_content:
+                token_logprobs = [float(item.logprob) for item in logprobs_content if hasattr(item, "logprob")]
+            avg_logprob = sum(token_logprobs) / len(token_logprobs) if token_logprobs else 0.0
+            return text, avg_logprob
+        except Exception:
+            return "", 0.0
+
 
 def get_backend(backend_type: str, model: str, **kwargs) -> Any:
     """Factory function to instantiate the correct model probing backend."""
@@ -204,5 +261,57 @@ def get_backend(backend_type: str, model: str, **kwargs) -> Any:
             api_key=kwargs.get("api_key"),
             base_url=kwargs.get("base_url")
         )
+    elif backend_type == "gemini":
+        return GeminiBackend(
+            model=model,
+            api_key=kwargs.get("api_key")
+        )
     else:
         raise ValueError(f"Unknown backend type: {backend_type}")
+
+
+class GeminiBackend:
+    """Official Google Gemini API backend."""
+
+    def __init__(self, model: str = "gemini-1.5-flash", api_key: Optional[str] = None):
+        try:
+            import google.generativeai as genai
+        except ImportError as exc:
+            raise ImportError(
+                "GeminiBackend requires the google-generativeai package: "
+                "pip install google-generativeai"
+            ) from exc
+        import os
+        genai.configure(api_key=api_key or os.environ.get("GEMINI_API_KEY", "mock-key"))
+        self.client = genai.GenerativeModel(model)
+        self.model = model
+
+    def generate_structured(self, prompt: str, schema: dict, **gen_kwargs) -> dict:
+        """Generate one structured response, enforcing schema via Gemini response_schema."""
+        import json
+        try:
+            response = self.client.generate_content(
+                prompt,
+                generation_config={
+                    "response_mime_type": "application/json",
+                    "response_schema": schema,
+                    "temperature": gen_kwargs.get("temperature", 0.3),
+                }
+            )
+            return json.loads(response.text)
+        except Exception:
+            return {"facts": []}
+
+    def generate_text_with_logprobs(self, prompt: str, **gen_kwargs) -> tuple:
+        """Generate text. Gemini standard SDK does not expose logprobs on generate_content."""
+        try:
+            response = self.client.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": gen_kwargs.get("temperature", 0.3),
+                }
+            )
+            return response.text, 0.0
+        except Exception:
+            return "", 0.0
+

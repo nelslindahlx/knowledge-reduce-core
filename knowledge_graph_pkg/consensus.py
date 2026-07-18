@@ -39,8 +39,15 @@ class ConsensusEngine:
 
         # Load the store drops into the Kuzu Graph
         store = KnowledgeStore(self.store_dir)
-        distiller = ModelKnowledgeDistiller.from_store(
-            store, min_agreement=1, min_reliability="UNVERIFIED"
+        all_facts = []
+        for f in store.iter_facts():
+            if not f.get("model_provenance"):
+                # Use _source (e.g. svo, spacy) or default to engine name
+                f["model_provenance"] = {"model": f.get("_source") or "svo"}
+            all_facts.append(f)
+
+        distiller = ModelKnowledgeDistiller(
+            all_facts, min_agreement=1, min_reliability="UNVERIFIED"
         )
         facts = distiller.select_facts()
         

@@ -714,11 +714,51 @@ DASHBOARD_HTML = """<!DOCTYPE html>
             }
         });
 
+        function setupWebSocket() {
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws`;
+                const ws = new WebSocket(wsUrl);
+
+                ws.onmessage = (event) => {
+                    try {
+                        const update = JSON.parse(event.data);
+                        if (update.type === 'graph_update') {
+                            if (update.nodes) {
+                                update.nodes.forEach(n => {
+                                    if (!allNodes.some(x => x.block_id === n.block_id)) {
+                                        allNodes.push(n);
+                                    }
+                                });
+                            }
+                            if (update.edges) {
+                                update.edges.forEach(e => {
+                                    if (!allEdges.some(x => x.from_id === e.from_id && x.to_id === e.to_id)) {
+                                        allEdges.push(e);
+                                    }
+                                });
+                            }
+                            renderNetwork(allNodes, allEdges);
+                            updateStats(allNodes);
+                        }
+                    } catch (e) {
+                        console.error("Error processing websocket update:", e);
+                    }
+                };
+
+                ws.onclose = () => {
+                    setTimeout(setupWebSocket, 5000);
+                };
+            } catch (e) {
+                console.error("Failed to setup WebSocket:", e);
+            }
+        }
+
         loadGraph();
+        setupWebSocket();
     </script>
 </body>
 </html>"""
-
 
 def make_handler(tools: Any) -> Any:
     from http.server import BaseHTTPRequestHandler
@@ -784,21 +824,120 @@ def make_handler(tools: Any) -> Any:
     return Handler
 
 
-def serve(store_path: str, host: str = "127.0.0.1", port: int = 8080) -> None:  # pragma: no cover
-    """Start the HTTP tool server backed by a KuzuStore at ``store_path``.
+def make_fastapi_app(tools: Any) -> Any:
+    """Create a FastAPI application serving the visual dashboard and tool endpoints."""
+    from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
+    from typing import Set
+    
+    app = FastAPI(title="KnowledgeReduce API Gateway")
+    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-    Blocking call -- runs until interrupted. Imported lazily so the module
-    stays importable (and testable) without kuzu installed.
-    """
-    from http.server import HTTPServer
+    active_websockets: Set[WebSocket] = set()
+
+    @app.get("/tools")
+    async def get_tools():
+        return {"tools": list_tools()}
+
+    @app.post("/tools/call")
+    async def post_tools_call(request: Request):
+        try:
+            req = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "invalid JSON"})
+        out = handle_tool_call(tools, req.get("name", ""), req.get("arguments", {}))
+        return JSONResponse(status_code=200 if out.get("ok") else 400, content=out)
+
+    @app.get("/", response_class=HTMLResponse)
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def get_dashboard():
+        return DASHBOARD_HTML
+
+    @app.get("/api/graph")
+    async def get_api_graph():
+        try:
+            nodes = tools.store.query(
+                "MATCH (f:Fact) "
+                "RETURN f.block_id AS block_id, f.statement AS statement, f.subject AS subject, "
+                "f.predicate AS predicate, f.object AS object, f.domain AS domain, "
+                "f.reliability AS reliability, f.agreement AS agreement, f.quality AS quality, "
+                "f.source_models AS source_models"
+            )
+            edges = tools.store.query(
+                "MATCH (a:Fact)-[r:RELATED]->(b:Fact) "
+                "RETURN a.block_id AS from_id, b.block_id AS to_id, r.predicate AS predicate, r.weight AS weight"
+            )
+            return {"nodes": nodes, "edges": edges}
+        except Exception as exc:
+            return JSONResponse(status_code=500, content={"error": str(exc)})
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket: WebSocket):
+        await websocket.accept()
+        active_websockets.add(websocket)
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            active_websockets.remove(websocket)
+
+    @app.post("/api/notify_update")
+    async def notify_update(request: Request):
+        try:
+            payload = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"error": "invalid JSON"})
+            
+        nodes = payload.get("nodes", [])
+        edges = payload.get("edges", [])
+        
+        closed_sockets = set()
+        for ws in active_websockets:
+            try:
+                await ws.send_json({
+                    "type": "graph_update",
+                    "nodes": nodes,
+                    "edges": edges
+                })
+            except Exception:
+                closed_sockets.add(ws)
+                
+        for ws in closed_sockets:
+            active_websockets.discard(ws)
+            
+        return {"status": "broadcasted", "recipients": len(active_websockets)}
+
+    return app
+
+
+def serve(store_path: str, host: str = "127.0.0.1", port: int = 8080) -> None:  # pragma: no cover
+    """Start the tool server backed by a KuzuStore at ``store_path``."""
     from .kuzu_store import KuzuStore
     from .graph_tool import GraphTools
 
     tools = GraphTools(KuzuStore(store_path))
-    Handler = make_handler(tools)
-    server = HTTPServer((host, port), Handler)
-    print(f"Graph tool server on http://{host}:{port}  (GET /tools, POST /tools/call)")
+    
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        server.shutdown()
+        import uvicorn
+        app = make_fastapi_app(tools)
+        print(f"Starting FastAPI server on http://{host}:{port}  (WS /ws, GET /tools, POST /tools/call)")
+        uvicorn.run(app, host=host, port=port)
+    except ImportError:
+        from http.server import HTTPServer
+        Handler = make_handler(tools)
+        server = HTTPServer((host, port), Handler)
+        print(f"[Fallback] Starting http.server on http://{host}:{port}  (GET /tools, POST /tools/call)")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            server.shutdown()
