@@ -1,0 +1,96 @@
+# KnowledgeReduce: Strategic Improvement Master Plan
+
+This document outlines the identified technical gaps in the current **KnowledgeReduce** & **ModelReduce** architecture and structures a 6-phase implementation roadmap to enhance its scalability, local training efficiency, reasoning capacity, and usability.
+
+---
+
+## 🔍 Identified Architectural Gaps
+
+1. **Local Fine-Tuning Constraints (No MLX support)**:
+   * *Problem*: Session 7 ships SFT training preparation but relies on heavy CUDA-based pipelines (torch, PEFT, TRL, transformers) for actual training. This requires an Nvidia GPU. Running this pipeline on local Apple Silicon hardware (like a MacBook Air or Pro) is highly inefficient.
+   * *Gap*: Lack of a lightweight, native macOS fine-tuning wrapper.
+
+2. **Ollama Probing Fleet Lock-in**:
+   * *Problem*: The `ModelProbe` layer is Ollama-only.
+   * *Gap*: Cannot load local raw GGUF files directly (via `llama.cpp` bindings), query high-throughput local backends (like `vLLM`), or call remote APIs (like OpenAI, Anthropic, or Cohere) behind a unified probing interface.
+
+3. **Heavy Dependency for Coreference Resolution**:
+   * *Problem*: Resolving pronouns in extracted facts currently requires installing the optional `nlp` extra and downloading the large `spaCy` package and English model.
+   * *Gap*: No lightweight, rule-based, dependency-free coreference resolver for fast CLI executions.
+
+4. **Static Graph Store (Inactive Reasoning)**:
+   * *Problem*: KùzuDB is integrated and nodes/edges are written, but the graph database acts as a passive index store.
+   * *Gap*: Lacks active graph reasoning (e.g., path-based contradiction detection, transitive fact inference, or automated fact validation).
+
+5. **No Telemetry or Interactive Visual Dashboard**:
+   * *Problem*: The catalog store can only be inspected via command-line list tables or raw JSON logs.
+   * *Gap*: No interactive interface (like Streamlit or Marimo notebooks) to visualize the knowledge graph topology, inspect drops, or trace evaluation precision.
+
+6. **Static File Ingestion (No daemon watcher)**:
+   * *Problem*: Processing requires manual CLI invocations of `knowledgereduce distill` or `knowledgereduce drop`.
+   * *Gap*: No background watcher daemon to automatically ingest new files in real-time as they appear in a directory.
+
+---
+
+## 🗺️ Improvement Roadmap (Milestones Plan)
+
+```mermaid
+graph TD
+    M1[Phase 1: Local MLX SFT] --> M2[Phase 2: Pluggable Probing Fleets]
+    M2 --> M3[Phase 3: Graph Reasoning]
+    M3 --> M4[Phase 4: Lightweight Coref]
+    M4 --> M5[Phase 5: Interactive Dashboard]
+    M5 --> M6[Phase 6: Watcher Daemon]
+```
+
+### 🎯 Phase 1: Local Apple Silicon Fine-Tuning (MLX-Based SFT)
+* **Goal**: Provide a native macOS local fine-tuning runner using Apple's MLX Framework.
+* **Tasks**:
+  1. Add `mlx-lm` as an optional dependency (`pip install -e ".[mlx]"`).
+  2. Implement `scripts/train_mlx.py` supporting LoRA and QLoRA fine-tuning for Apple Silicon GPUs.
+  3. Expose `knowledgereduce train-mlx` CLI command to compile a shard and kick off local training in one line.
+* **Success Metric**: Train a 1B to 3B model locally on Apple Silicon at > 1000 tokens/sec.
+
+### 🎯 Phase 2: Pluggable Probing Fleets & Multi-Backends
+* **Goal**: Break the Ollama-only dependency and support heterogeneous LLM backends.
+* **Tasks**:
+  1. Define a unified `BaseProbeBackend` protocol interface.
+  2. Implement `LlamaCppBackend` for direct GGUF execution with local resource limits.
+  3. Implement `vLLMBackend` for high-throughput local server deployments.
+  4. Implement `OpenAICompatibleBackend` for API endpoints (OpenAI, Anthropic, Cohere).
+  5. Decouple embeddings; support `sentence-transformers` for local offline vector generation.
+* **Success Metric**: Probe a mix of local GGUFs and OpenAI endpoints concurrently using the same schemas.
+
+### 🎯 Phase 3: Graph Reasoning & Path-Based Validation
+* **Goal**: Turn KùzuDB from a passive index store into an active reasoning engine.
+* **Tasks**:
+  1. **Contradiction Detection**: Write automated Cypher queries to locate contradiction loops (e.g., `FactA` contradicts `FactB`).
+  2. **Transitive Fact Inference**: Deduce secondary connections (e.g., if `A -> B` and `B -> C`, propose relationship `A -> C`).
+  3. **Path Validation**: Use graph traversals to rate fact reliability (e.g., a fact connected to highly verified source nodes receives a higher rating).
+* **Success Metric**: Automatically flag contradiction loops during evaluation.
+
+### 🎯 Phase 4: Lightweight Dependency-Free Coreference Resolution
+* **Goal**: Provide standard coreference resolution without downloading SpaCy.
+* **Tasks**:
+  1. Implement a rule-based pronoun resolver (`knowledge_graph_pkg/coref_simple.py`) using sentence distance, gender/number heuristics, and entity tracking.
+  2. Integrate this resolver as the default fallback when `[nlp]` (spaCy) is not installed.
+* **Success Metric**: Standard coreference resolution executes cleanly on core installations without importing spaCy.
+
+### 🎯 Phase 5: Interactive Visual Dashboard (Marimo/Streamlit)
+* **Goal**: Provide a premium visual interface for inspecting and controlling the pipeline.
+* **Tasks**:
+  1. Create a Streamlit or Marimo dashboard (`scripts/dashboard.py`).
+  2. Visualizations:
+     * Graph topology using D3 or PyVis.
+     * Drops catalog metadata table and import timeline.
+     * Evaluation precision/recall curves and calibration gates.
+  3. Interactive controls to compile shards, run evaluation runs, or trigger model probes.
+* **Success Metric**: Interactively explore, query, and visual-filter the knowledge graph in a web browser.
+
+### 🎯 Phase 6: Real-Time Ingestion Watcher Daemon
+* **Goal**: Automate ingestion via background watchers.
+* **Tasks**:
+  1. Implement a daemon using `watchdog` to monitor a specified directory (e.g., `data/ingest_watch/`).
+  2. Automatically trigger `drop` pipelines as new TXT, HTML, or PDF files are added or modified.
+  3. Log daemon activities and state to a sqlite database.
+* **Success Metric**: Background ingestion of new papers/articles into the graph database within 5 seconds of file creation.
