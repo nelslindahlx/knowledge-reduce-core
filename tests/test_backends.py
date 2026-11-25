@@ -87,7 +87,12 @@ class TestPluggableBackends(unittest.TestCase):
         mock_instance.chat.completions.create.assert_called_once()
         args, kwargs = mock_instance.chat.completions.create.call_args
         self.assertEqual(kwargs["model"], "gpt-4")
-        self.assertEqual(kwargs["response_format"]["type"], "json_object")
+        self.assertEqual(kwargs["response_format"]["type"], "json_schema")
+        self.assertEqual(kwargs["response_format"]["json_schema"]["schema"], schema)
+
+        backend.generate_structured("test prompt", schema={})
+        _, kwargs_empty = mock_instance.chat.completions.create.call_args
+        self.assertEqual(kwargs_empty["response_format"]["type"], "json_object")
 
     def test_sentence_transformers_embedder(self):
         mock_instance = MagicMock()

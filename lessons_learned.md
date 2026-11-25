@@ -151,5 +151,17 @@ During Phase 2 review (`entity_resolution.py`, `rag.py`), two subtle failure mod
 * Restrict high-confidence `1.0` entity matching to exact normalized matches, parenthetical acronyms/initials (`"Adenosine Triphosphate (ATP)"` <-> `"ATP"`, `"Large Language Model"` <-> `"LLM"`), and long single-character chemical prefixes (`"D-Glucose"` <-> `"Glucose"`), and rewrite statements on word boundaries after writing merged nodes and remapping `RELATED` edges.
 * Track `(store.count(), store.edge_count())` for PageRank cache invalidation, and fall back to pure-Python power iteration when `nx.pagerank()` raises `ImportError` so Graph-RAG ranking stays accurate even in minimal installs without `scipy`.
 
+---
+
+## 15. Unspecced Mocks Masking Backend Contract Drift & Consensus Hash Collisions
+
+### Context
+During Phase 3 (`critique.py`, `model_probe.py`, `consensus.py`, `model_eval.py`), unspecced `MagicMock()` backends allowed `FactCritic` to call nonexistent `generate_structured_json`/`generate_text` methods while production `OllamaBackend`/`OpenAICompatibleBackend` only implemented `generate_structured`/`generate_text_with_logprobs`. Meanwhile, `ConsensusEngine` hashed only raw file text across engines so engines 2..N were skipped as duplicates, and `model_eval.py` mixed shard true-positives with gold false-negatives in `tp / (tp + fn)`.
+
+### Lesson Learned
+* Use `MagicMock(spec=...)` or explicit fake classes matching the real backend protocol (`generate_structured`, `generate_text_with_logprobs`), and keep at least one non-mocked integration test per multi-stage pipeline (`ConsensusEngine` -> `KnowledgeStore` -> `KuzuStore`).
+* Fail closed (`is_factual=False`) on critique parsing/backend errors and validate boolean strings explicitly instead of relying on Python's truthiness (`bool("false") is True`).
+* Measure dataset recall against matched gold items (`matched_gold / len(positives)`), not shard prediction counts, so duplicate extracted triples cannot inflate recall past true gold coverage.
+
 
 

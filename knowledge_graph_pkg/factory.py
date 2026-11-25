@@ -35,7 +35,8 @@ def scan_folder(folder: str, recursive: bool = False) -> List[str]:
 def batch_drop(sources: List[str], store_dir: str,
                reliability: str = "likely_true", filter_name: str = "standard",
                coref: bool = False, engine: str = "svo",
-               max_object_len: int = 80, dedup: float = 0.9) -> Dict[str, Any]:
+               max_object_len: int = 80, dedup: float = 0.9,
+               include_engine_in_hash: bool = False) -> Dict[str, Any]:
     """Drop many sources into a store; skip unchanged ones; return a report.
 
     The report has ``dropped`` / ``skipped`` / ``errors`` counts, a
@@ -79,7 +80,8 @@ def batch_drop(sources: List[str], store_dir: str,
             if not os.path.isfile(src):
                 raise FileNotFoundError(src)
             text = load_text(src)
-            src_hash = content_hash(text)
+            hash_input = f"{engine}\x00{text}" if include_engine_in_hash else text
+            src_hash = content_hash(hash_input)
 
             if store.has_source_hash(src_hash):
                 item["status"] = "skipped"
@@ -95,9 +97,17 @@ def batch_drop(sources: List[str], store_dir: str,
             distiller = KnowledgeDistiller(kg, min_reliability=reliability_enum,
                                            dedup_threshold=dedup, quality_filter=qf)
             facts = distiller.select_facts()
+            for fact in facts:
+                fact.setdefault("_engine", engine)
 
             base = os.path.splitext(os.path.basename(src))[0]
-            drop = Drop(drop_id=f"{base}-{src_hash[:12]}", source=src,
+            safe_engine = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(engine))
+            drop_id = (
+                f"{base}-{safe_engine}-{src_hash[:12]}"
+                if include_engine_in_hash
+                else f"{base}-{src_hash[:12]}"
+            )
+            drop = Drop(drop_id=drop_id, source=src,
                         source_hash=src_hash, facts=facts, engine=engine,
                         filter_name=filter_name, coref=coref, source_text=text)
             store.write_drop(drop)

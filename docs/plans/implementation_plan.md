@@ -17,10 +17,18 @@ Master roadmap archived in `docs/plans/master_plan_v0_4_0.md`.
 - `[x]` Cycle-free subgraph & true-contradiction `graph_compiler.py`
 - `[x]` Case-insensitive single-pass `OntologyDistiller` (`ontology.py`) wired into `graph_tool.py`, `watcher.py`, `mcp_server.py`, `cli.py`
 - `[x]` Pure-Python + `KuzuStore` tests (`tests/test_entity_resolution.py`, `tests/test_rag.py`, `tests/test_graph_compiler.py`, `tests/test_ontology.py`)
-- `[ ]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merge PR #3
+- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merged PR #3 (`9eae4e2`)
+
+## Phase 3: ModelReduce Refinery, Probing, Consensus, Critique, Crawler & Training (`PR #4`)
+- `[x]` Structured probing, schemas, Gemini sanitization, timeouts & logprob guards (`model_probe.py`, `probe_templates.py`)
+- `[x]` `FactCritic` aligned with real backend protocol, fail-closed errors & strict bool parsing (`critique.py`)
+- `[x]` Multi-engine `ConsensusEngine` + `factory.batch_drop(include_engine_in_hash=True)` & Neo4j URI parity (`consensus.py`, `factory.py`)
+- `[x]` Boundary-matched capability weights, empty-SPO guard, distillation parity & compound-safe `ModelDrop` (`cross_model.py`, `model_distill.py`, `model_drop.py`)
+- `[x]` Exact gold recall, negation-aware eval, crawler guards, atomic graveyard & MLX/SFT prep (`embeddings.py`, `model_eval.py`, `crawler.py`, `graveyard.py`, `training_prep.py`, `train.py`)
+- `[x]` Upgraded ModelReduce test suites & eliminated `test_train_wrapper.py` / `test_model_probe.py` `sys.modules` leaks
+- `[ ]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merge PR #4
 
 ## Remaining Phases (`v0.4.0`)
-- `[ ]` Phase 3: ModelReduce Refinery, Probing, Consensus, Critique, Crawler & Training (`PR #4`)
 - `[ ]` Phase 4: Core Graph, V1 Ingestion/Distillation, Storage & Legacy Modules (`PR #5`)
 - `[ ]` Phase 5: CLI Packaging & Error Handling, Scripts, Examples & Test Isolation (`PR #6`)
 - `[ ]` Phase 6: Coverage Hardening, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)
