@@ -127,4 +127,16 @@ As `knowledge_graph_pkg` grew across document distillation (`SVOExtractor`), `Mo
 * Mirroring `AGENTS.md` and `.agents/AGENTS.md` (verified byte-identical in `tests/meta/test_governance_and_invariants.py`) alongside `.agents/hooks.json` (`scripts/hooks/pre_pr_safety_gate.py`) and `scripts/github_pr_helper.py` blocks direct `main` pushes and enforces meta-gates before PR creation or merge.
 * Mechanical invariant tests catch subtle repository drift immediately: truncated `LICENSE` files, `0.2.0` vs `0.3.0` fallback mismatches in `knowledge_graph_pkg/__init__.py` against `CITATION.cff` and `pyproject.toml`, stray `.db` / `.pyc` artifacts, and machine-local workstation paths in deployment manifests and planning docs.
 
+---
+
+## 13. Real Integration Tests vs. Unspecced Mocks & Store Contract Parity
+
+### Context
+During the `v0.4.0` full-codebase audit, unit tests in `tests/test_watcher.py` and `tests/test_neo4j_store.py` passed only because mocks returned fabricated keys (`"status": "success"` + list `"facts"`, or `"statement"`/`"reliability"`) that real producers (`factory.batch_drop`, `ModelKnowledgeDistiller`) never emitted — leaving `WatcherDaemon --graph-db` dead in production and `Neo4jStore` storing empty statements.
+### Lesson Learned
+* Always keep at least one end-to-end integration test exercising the real producer -> store -> consumer pipeline (`batch_drop` -> `WatcherDaemon` -> `KuzuStore` -> `OntologyDistiller`) inside `tempfile.TemporaryDirectory()` rather than mocking every stage boundary.
+* Centralize record normalization (`normalize_fact_record` in `knowledge_graph_pkg/graph_store_base.py`) so `KuzuStore` and `Neo4jStore` accept identical canonical and legacy fact fields and perform idempotent `MERGE ... SET` updates.
+* Validate HTTP workspace identifiers (`x-workspace-id`), JWT signatures (`MCP_JWT_SECRET` without plaintext bypasses), WebSocket tenant partitioning, and read-only Cypher guards (`GraphTools.graph_query`) mechanically in `tests/test_mcp_server.py` and `tests/test_graph_tool.py`.
+
+
 

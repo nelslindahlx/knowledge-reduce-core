@@ -1,12 +1,18 @@
-# Implementation Plan: Repository Hardening Alignment
+# Implementation Plan: Codebase Audit, Hardening & Quality Assurance (`v0.4.0`)
 
-Checklist bringing repository governance, zero-GitHub-minutes stratified local CI, Maker/Checker PR automation, hygiene guards, and GitHub branch protection from `KnowledgeReduce` to **KnowledgeReduce Core** (`knowledge-reduce-core`).
+Master roadmap archived in `docs/plans/master_plan_v0_4_0.md`.
 
-- `[x]` Create ephemeral feature branch `chore/repo-hardening` off `main`, remove stray root DB/watch artifacts, and install `ruff` dev tool.
-- `[x]` Replace truncated `LICENSE` with full MIT License, add `CITATION.cff`, sync fallback `__version__ = "0.3.0"` in `knowledge_graph_pkg/__init__.py`, configure Ruff/coverage in `pyproject.toml`, update `.pre-commit-config.yaml` and `.gitignore`, and resolve test lint errors.
-- `[x]` Scrub all machine-local workstation paths (absolute home paths and `file://` URLs) across `MODELREDUCE_MASTER_PLAN.md`, `MODELREDUCE_SESSIONS.md`, `deploy/`, `improvement_master_plan_phase_2.md`, `task.md`, and `walkthrough.md`.
-- `[x]` Add `AGENTS.md`, byte-identical `.agents/AGENTS.md`, `.agents/rules/coding_method_guardrails.md`, `.agents/rules/release_and_pr_management.md`, `.agents/hooks.json`, `scripts/hooks/pre_pr_safety_gate.py`, and `scripts/github_pr_helper.py`, and update `scripts/run_suite.py`.
-- `[x]` Add `.github/CODEOWNERS`, `.github/pull_request_template.md`, manual `workflow_dispatch`-only workflows (`ci.yml`, `pr-governance.yml`, `release.yml`, `skill-validation.yml`), and stratified `Makefile`.
-- `[x]` Sync `CHANGELOG.md`, `CONTRIBUTING.md`, `README.md`, `lessons_learned.md`, `docs/plans/`, and add mechanical meta-tests in `tests/meta/test_governance_and_invariants.py`.
-- `[x]` Verify `make local-ci`, `make smoke-pr`, PreToolUse hook deny/allow behavior, and zero path/pyc leaks.
-- `[ ]` Configure GitHub `delete_branch_on_merge` and `main` branch protection, complete Maker/Checker PR audit + squash merge, and confirm `make audit-prs` exits `0`.
+## Phase 1: Security Hardening, Graph Store Parity, MCP Server & Watcher Pipeline (`PR #2`)
+- `[x]` Graph store parity (`graph_store_base.py`, `kuzu_store.py`, `neo4j_store.py`, `graph_store_factory.py`)
+- `[x]` `GraphTools` read-only Cypher guard & retriever caching (`graph_tool.py`)
+- `[x]` `mcp_server.py` auth, workspace containment, WebSocket isolation, CORS, stdlib parity & `DASHBOARD_HTML` XSS/bug fixes
+- `[x]` `WatcherDaemon` + `factory.batch_drop` real graph pipeline contract & atomic ontology output
+- `[x]` Clean isolated unit & integration tests (`tests/test_neo4j_store.py`, `tests/test_graph_tool.py`, `tests/test_mcp_server.py`, `tests/test_watcher.py`, `tests/test_reasoning.py`)
+- `[ ]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merge PR #2
+
+## Remaining Phases (`v0.4.0`)
+- `[ ]` Phase 2: Entity Resolution, Graph-RAG, Graph Compiler & Ontology Distillation (`PR #3`)
+- `[ ]` Phase 3: ModelReduce Refinery, Probing, Consensus, Critique, Crawler & Training (`PR #4`)
+- `[ ]` Phase 4: Core Graph, V1 Ingestion/Distillation, Storage & Legacy Modules (`PR #5`)
+- `[ ]` Phase 5: CLI Packaging & Error Handling, Scripts, Examples & Test Isolation (`PR #6`)
+- `[ ]` Phase 6: Coverage Hardening, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)

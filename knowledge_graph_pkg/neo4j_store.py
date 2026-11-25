@@ -1,34 +1,53 @@
-import hashlib
+import os
 from typing import Any, Dict, List, Optional
-from .graph_store_base import BaseGraphStore
 
-
-def _block_id(fact: Dict[str, Any]) -> str:
-    """Deterministic id from the SVO triple (idempotent re-ingest)."""
-    key = "\x00".join(_s(fact.get(k)) for k in ("subject", "predicate", "object"))
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
-
-
-def _s(v: Any) -> str:
-    return str(v if v is not None else "")
+from .graph_store_base import BaseGraphStore, normalize_fact_record
 
 
 class Neo4jStore(BaseGraphStore):
     """Neo4j cloud/server graph store of distilled facts (Cypher-queryable)."""
 
-    def __init__(self, uri: str, user: str = "neo4j", password: str = "password", database: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        uri: str,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        database: Optional[str] = None,
+        **kwargs,
+    ):
+        self._uri = uri
+        self._user = kwargs.get("username") or user or os.environ.get("NEO4J_USER") or "neo4j"
+        self._database = database
+
+        existing_driver = kwargs.get("_driver")
+        if existing_driver is not None:
+            self.driver = existing_driver
+            return
+
         try:
             from neo4j import GraphDatabase
-        except ImportError:
+        except ImportError as exc:
             raise ImportError(
                 "neo4j library is missing. Install it with: pip install neo4j"
+            ) from exc
+
+        resolved_password = password if password is not None else os.environ.get("NEO4J_PASSWORD")
+        if resolved_password is None:
+            raise ValueError(
+                "Neo4j password required via password argument or NEO4J_PASSWORD environment variable."
             )
-        self._uri = uri
-        self._user = kwargs.get("username", user)
-        self._password = password
-        self._database = database
-        self.driver = GraphDatabase.driver(self._uri, auth=(self._user, self._password))
+
+        self.driver = GraphDatabase.driver(self._uri, auth=(self._user, resolved_password))
         self._init_constraints()
+
+    def with_database(self, database: str) -> "Neo4jStore":
+        """Create a workspace-scoped view sharing the existing Neo4j driver."""
+        return Neo4jStore(
+            self._uri,
+            user=self._user,
+            database=database,
+            _driver=self.driver,
+        )
 
     def _init_constraints(self) -> None:
         """Create uniqueness constraints on Fact.block_id."""
@@ -47,7 +66,7 @@ class Neo4jStore(BaseGraphStore):
 
         query = (
             "MERGE (f:Fact {block_id: $bid}) "
-            "ON CREATE SET "
+            "SET "
             "  f.statement = $statement, "
             "  f.subject = $subject, "
             "  f.predicate = $predicate, "
@@ -61,18 +80,18 @@ class Neo4jStore(BaseGraphStore):
 
         count = 0
         for f in facts:
-            bid = _block_id(f)
+            norm = normalize_fact_record(f)
             params = {
-                "bid": bid,
-                "statement": f.get("statement", ""),
-                "subject": f.get("subject", ""),
-                "predicate": f.get("predicate", ""),
-                "object": f.get("object", ""),
-                "domain": f.get("domain", ""),
-                "reliability": _s(f.get("reliability")),
-                "agreement": int(f.get("agreement", 1)),
-                "quality": float(f.get("quality", 1.0)),
-                "source_models": f.get("source_models", "")
+                "bid": norm["block_id"],
+                "statement": norm["statement"],
+                "subject": norm["subject"],
+                "predicate": norm["predicate"],
+                "object": norm["object"],
+                "domain": norm["domain"],
+                "reliability": norm["reliability"],
+                "agreement": norm["agreement"],
+                "quality": norm["quality"],
+                "source_models": norm["source_models"],
             }
             self.query(query, params)
             count += 1

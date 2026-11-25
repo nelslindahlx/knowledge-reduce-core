@@ -16,21 +16,9 @@ Schema (v1): a single ``Fact`` node table keyed by a deterministic
 table is created for future fact-to-fact edges.
 """
 
-import hashlib
 from typing import Any, Dict, List, Optional
 
-
-from .graph_store_base import BaseGraphStore
-
-
-def _block_id(fact: Dict[str, Any]) -> str:
-    """Deterministic id from the SVO triple (idempotent re-ingest)."""
-    key = "\x00".join(_s(fact.get(k)) for k in ("subject", "predicate", "object"))
-    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
-
-
-def _s(v: Any) -> str:
-    return str(v if v is not None else "")
+from .graph_store_base import BaseGraphStore, normalize_fact_record
 
 
 class KuzuStore(BaseGraphStore):
@@ -45,7 +33,7 @@ class KuzuStore(BaseGraphStore):
             ) from exc
         self._kuzu = kuzu
         self.path = path
-        
+
         import time
         max_retries = 5
         backoff = 0.1
@@ -55,11 +43,13 @@ class KuzuStore(BaseGraphStore):
                 self.conn = kuzu.Connection(self.db)
                 break
             except RuntimeError as exc:
-                if attempt == max_retries - 1:
+                err_msg = str(exc).lower()
+                if ("lock" in err_msg or "connection" in err_msg) and attempt < max_retries - 1:
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
                     raise exc
-                time.sleep(backoff)
-                backoff *= 2
-                
+
         self._init_schema()
 
     def _execute(self, cypher: str, params: Optional[Dict[str, Any]] = None):
@@ -72,9 +62,7 @@ class KuzuStore(BaseGraphStore):
                 return self.conn.execute(cypher, params or {})
             except RuntimeError as exc:
                 err_msg = str(exc).lower()
-                if "lock" in err_msg or "connection" in err_msg or attempt == max_retries - 1:
-                    if attempt == max_retries - 1:
-                        raise exc
+                if ("lock" in err_msg or "connection" in err_msg) and attempt < max_retries - 1:
                     time.sleep(backoff)
                     backoff *= 2
                 else:
@@ -97,19 +85,18 @@ class KuzuStore(BaseGraphStore):
     def ingest_facts(self, facts: List[Dict[str, Any]]) -> int:
         """Insert facts as Fact nodes. Idempotent by block_id. Returns count seen."""
         for f in facts:
-            bid = _block_id(f)
-            models = f.get("source_models") or []
+            norm = normalize_fact_record(f)
             params = {
-                "bid": bid,
-                "stmt": _s(f.get("fact_statement")),
-                "subj": _s(f.get("subject")),
-                "pred": _s(f.get("predicate")),
-                "obj": _s(f.get("object")),
-                "domain": _s(f.get("domain") or f.get("category")),
-                "rel": _s(f.get("reliability_rating")),
-                "agree": int(f.get("cross_model_agreement", 1) or 1),
-                "quality": int(f.get("quality_score", 0) or 0),
-                "models": ", ".join(models) if isinstance(models, list) else _s(models),
+                "bid": norm["block_id"],
+                "stmt": norm["statement"],
+                "subj": norm["subject"],
+                "pred": norm["predicate"],
+                "obj": norm["object"],
+                "domain": norm["domain"],
+                "rel": norm["reliability"],
+                "agree": norm["agreement"],
+                "quality": norm["quality"],
+                "models": norm["source_models"],
             }
             # MERGE makes re-ingest idempotent (no duplicate block_id).
             self._execute(
@@ -133,7 +120,8 @@ class KuzuStore(BaseGraphStore):
         return rows
 
     def count(self) -> int:
-        return self.query("MATCH (f:Fact) RETURN count(f) AS n")[0]["n"]
+        res = self.query("MATCH (f:Fact) RETURN count(f) AS n")
+        return res[0]["n"] if res else 0
 
     def close(self) -> None:
         # Drop references so KùzuDB releases the on-disk lock for reopen.
