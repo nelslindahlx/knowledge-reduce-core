@@ -24,7 +24,8 @@ def classify_stages(all_files):
 
     stage1_files = {
         "test_core.py", "test_schemas.py", "test_store.py", "test_factory.py",
-        "test_qa.py", "test_quality.py", "test_distillation_io.py"
+        "test_qa.py", "test_quality.py", "test_distillation_io.py",
+        "test_governance_and_invariants.py", "test_skill.py",
     }
     
     stage2_files = {

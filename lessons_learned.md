@@ -116,3 +116,15 @@ When recursively crawling a model's latent weights, models can generate hallucin
 * Requesting token logprobs in GGUF completions (via `logprobs=True`) and remote APIs, and calculating the mathematical average log-probability of the generated text, provides a direct confidence score.
 * Filtering out generated facts whose average logprobs fall below a strict threshold (e.g. `-1.5`) successfully prunes highly uncertain or hallucinated factual branches from the graph.
 
+---
+
+## 12. Zero-GitHub-Actions-Minutes Stratified Local CI, Maker/Checker Governance & Local-Path Hygiene
+
+### Context
+As `knowledge_graph_pkg` grew across document distillation (`SVOExtractor`), `ModelReduce`, `Watcher` daemons, `KùzuDB`/`Neo4jStore`, and `Graph-RAG` surfaces, keeping CI fast, catching version/license drift, and preventing direct pushes to `main` or leaked local paths required unified mechanical guardrails.
+### Lesson Learned
+* Restricting `.github/workflows/*.yml` (`ci.yml`, `pr-governance.yml`, `release.yml`, `skill-validation.yml`) to `workflow_dispatch` eliminates automatic CI minute burn while preserving full local parity via `Makefile` (`make canary`, `make skill`, `make lint`, `make local-ci`, `make audit-prs`).
+* Mirroring `AGENTS.md` and `.agents/AGENTS.md` (verified byte-identical in `tests/meta/test_governance_and_invariants.py`) alongside `.agents/hooks.json` (`scripts/hooks/pre_pr_safety_gate.py`) and `scripts/github_pr_helper.py` blocks direct `main` pushes and enforces meta-gates before PR creation or merge.
+* Mechanical invariant tests catch subtle repository drift immediately: truncated `LICENSE` files, `0.2.0` vs `0.3.0` fallback mismatches in `knowledge_graph_pkg/__init__.py` against `CITATION.cff` and `pyproject.toml`, stray `.db` / `.pyc` artifacts, and machine-local workstation paths in deployment manifests and planning docs.
+
+

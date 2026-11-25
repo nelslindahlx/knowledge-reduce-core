@@ -372,7 +372,7 @@ Session 8 (Docs + Release) ← needs Session 7
 > 
 > Continue ModelReduce development from Session {N-1}. 
 > 
-> **Context:** KnowledgeReduce package at `/Users/nelslindahl/Hermes-Output/knowledgereduce/`. 
+> **Context:** KnowledgeReduce package at `<repo-root>/`. 
 > Previous sessions completed: {list}.
 > 
 > **Current Session Goal:** {session N goal from above}.

@@ -115,7 +115,6 @@ def test_handler_dashboard_and_api():
 
 
 def test_fastapi_endpoints():
-    import pytest
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
     from knowledge_graph_pkg.mcp_server import make_fastapi_app

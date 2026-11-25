@@ -1,7 +1,7 @@
 # ModelReduce: Master Implementation Plan
 
 **Status:** ✅ COMPLETE — all 8 sessions shipped (v0.3.0, CI green)
-**Package:** `/Users/nelslindahl/Hermes-Output/knowledgereduce/`
+**Package:** `<repo-root>/`
 **Philosophy:** Models are ore. KnowledgeReduce is the refinery. Shards are pure metal.
 
 ---
@@ -1052,7 +1052,7 @@ Session 12 (Gateway) ← needs: all above
 **Start Session 1 now:**
 
 ```bash
-cd /Users/nelslindahl/Hermes-Output/knowledgereduce
+cd <repo-root>
 # Create knowledge_graph_pkg/probe_templates.py and model_probe.py
 # Test with: python -c "from knowledge_graph_pkg.model_probe import ModelProbe; ..."
 ```

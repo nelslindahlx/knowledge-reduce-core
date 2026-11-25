@@ -3,8 +3,13 @@ __pycache__/
 *.pyc
 *.egg-info/
 .coverage
+coverage.xml
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 htmlcov/
+build/
+dist/
 *.gguf
 qwen_crawled_store/
 test_drive_store/
@@ -19,5 +24,7 @@ local_path
 *.db-shm
 *.db-wal
 
+test_store_*/
+test_watch_*/
 test_watch_d/
 test_graph_db_d/

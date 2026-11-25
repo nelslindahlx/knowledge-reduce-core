@@ -53,7 +53,7 @@ class TestSystemHardening(unittest.TestCase):
             [{"src": "f1", "dst": "f2"}]
         ]
         
-        scores3 = retriever.calculate_pagerank()
+        retriever.calculate_pagerank()
         self.assertEqual(mock_store.query.call_count, 4)
 
     @patch.dict('os.environ', {}, clear=True)

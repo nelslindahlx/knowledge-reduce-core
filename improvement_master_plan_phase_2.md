@@ -11,7 +11,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Changes**:
   * Enable WAL (Write-Ahead Logging) journal mode: `PRAGMA journal_mode=WAL;`.
   * Set a busy timeout of 5000ms: `PRAGMA busy_timeout=5000;`.
-* **Files**: [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py)
+* **Files**: [watcher.py](knowledge_graph_pkg/watcher.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -21,7 +21,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Changes**:
   * Validate token structure, algorithm, signature, and expiration (`exp`) claims.
   * Fall back safely to standard verification if keys are not configured.
-* **Files**: [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py)
+* **Files**: [mcp_server.py](knowledge_graph_pkg/mcp_server.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -31,7 +31,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Changes**:
   * Implement prefix/first-character blocking to narrow comparison sets.
   * Restrict real-time daemon calls to newly ingested concept nodes and their 2-hop neighborhoods.
-* **Files**: [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py), [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py)
+* **Files**: [entity_resolution.py](knowledge_graph_pkg/entity_resolution.py), [watcher.py](knowledge_graph_pkg/watcher.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -41,7 +41,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Changes**:
   * Accept an optional rules dictionary/configuration file path in `OntologyDistiller.__init__`.
   * Define fallbacks to standard rules.
-* **Files**: [ontology.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/ontology.py)
+* **Files**: [ontology.py](knowledge_graph_pkg/ontology.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -50,7 +50,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Objective**: Prevent the RAG path walker from traversing edges connected to active unresolved contradictions.
 * **Changes**:
   * Add a conflict-pruning pass during Graph-RAG neighbor extraction.
-* **Files**: [rag.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/rag.py)
+* **Files**: [rag.py](knowledge_graph_pkg/rag.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -60,7 +60,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Changes**:
   * Register the `graph_distill_ontology` schema to `TOOL_SCHEMAS`.
   * Implement the dispatch method in `GraphTools`.
-* **Files**: [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py)
+* **Files**: [graph_tool.py](knowledge_graph_pkg/graph_tool.py)
 * **Status**: **COMPLETED**
 
 ---
@@ -69,7 +69,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Objective**: Enable platform parity for supervised fine-tuning on CUDA-enabled GPUs and Linux server setups directly from the CLI.
 * **Changes**:
   * Add `train-sft` subcommand parsing options, dispatch routing, and PyTorch/PEFT training script mapping.
-* **Files**: [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py), `tests/test_train_wrapper.py`
+* **Files**: [cli.py](knowledge_graph_pkg/cli.py), `tests/test_train_wrapper.py`
 * **Status**: **COMPLETED**
 
 ---
@@ -78,7 +78,7 @@ This master plan details the remediation steps to address the performance, scala
 * **Objective**: Allow developers to quickly run a full end-to-end extraction, consensus ingestion, PageRank calculation, and Graph-RAG walk test.
 * **Changes**:
   * Expose `test-drive` subcommand and map it to `scripts/test_drive.py`.
-* **Files**: [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py), `tests/test_cli.py`
+* **Files**: [cli.py](knowledge_graph_pkg/cli.py), `tests/test_cli.py`
 * **Status**: **COMPLETED**
 
 ---

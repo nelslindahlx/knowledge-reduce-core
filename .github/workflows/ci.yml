@@ -1,0 +1,52 @@
+# GitHub Actions automatic triggers are disabled to avoid consuming GitHub Action minutes.
+# Execute local CI via `make local-ci` or `uv run --no-sync pytest`.
+name: CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  quality-and-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.4.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv pip install --python $(uv python find ${{ matrix.python-version }}) -e ".[dev,hermes]"
+
+      - name: Canary import & governance meta-gate
+        run: |
+          uv run --python ${{ matrix.python-version }} python -W error::Warning -c "import knowledge_graph_pkg"
+          uv run --python ${{ matrix.python-version }} pytest tests/meta/ -q
+
+      - name: Hermes skill smoke & manifest validation
+        run: |
+          uv run --python ${{ matrix.python-version }} python scripts/smoke_skill.py
+          uv run --python ${{ matrix.python-version }} pytest tests/test_skill.py -q
+
+      - name: Lint and format check with ruff
+        run: |
+          uv run --python ${{ matrix.python-version }} ruff check knowledge_graph_pkg tests scripts
+          uv run --python ${{ matrix.python-version }} ruff check --select E,F,W,I,B,UP,S,SIM,RUF --ignore E501,S101 scripts/github_pr_helper.py scripts/hooks tests/meta
+          uv run --python ${{ matrix.python-version }} ruff format --check scripts/github_pr_helper.py scripts/hooks tests/meta
+
+      - name: Run pytest with coverage gate
+        run: |
+          uv run --python ${{ matrix.python-version }} pytest \
+            --cov=knowledge_graph_pkg \
+            --cov-report=term-missing \
+            --cov-fail-under=58

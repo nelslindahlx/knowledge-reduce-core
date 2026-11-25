@@ -1,0 +1,65 @@
+# GitHub Actions automatic triggers are disabled to avoid consuming GitHub Action minutes.
+# Execute local CI via `make local-ci` or `uv run --no-sync python -m pytest tests/meta/ -q`.
+name: PR Governance
+
+on:
+  workflow_dispatch:
+
+jobs:
+  maker-checker-gate:
+    name: maker-checker-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify governance invariants and repository hygiene
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import sys
+
+          head_ref = os.environ.get("HEAD_REF", "").strip()
+          pr_body = os.environ.get("PR_BODY", "").strip()
+          if head_ref:
+              if head_ref == "main":
+                  sys.exit(f"PR head branch must not be 'main' (got {head_ref!r}).")
+              has_maker = re.search(r"^##\s+Maker\b", pr_body, flags=re.IGNORECASE | re.MULTILINE)
+              has_checker = re.search(
+                  r"^##\s+Checker\b", pr_body, flags=re.IGNORECASE | re.MULTILINE
+              )
+              if not has_maker or not has_checker:
+                  sys.exit(
+                      "PR description must include both '## Maker ...' and '## Checker ...' sections."
+                  )
+
+          pyc_files = subprocess.check_output(["git", "ls-files", "*.pyc"], text=True).strip()
+          if pyc_files:
+              sys.exit(f"Tracked .pyc bytecode files are forbidden:\n{pyc_files}")
+
+          forbidden_needles = (
+              "/" + "Users/",
+              "file:///" + "Users/",
+              "C:" + "\\Users\\",
+          )
+          repo_root = pathlib.Path(".")
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          for rel in tracked:
+              p = repo_root / rel
+              if not p.is_file() or rel == ".github/workflows/pr-governance.yml" or rel == "tests/meta/test_governance_and_invariants.py":
+                  continue
+              text = p.read_text(encoding="utf-8", errors="ignore")
+              for needle in forbidden_needles:
+                  if needle in text:
+                      sys.exit(f"Machine-local path {needle!r} leaked into {rel}")
+
+          print("maker-checker-gate passed.")
+          PY

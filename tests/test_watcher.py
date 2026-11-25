@@ -41,7 +41,7 @@ class TestWatcherDaemon(unittest.TestCase):
         if os.path.exists(store_dir):
             os.rmdir(store_dir)
             
-        daemon = WatcherDaemon(watch_dir=watch_dir, store_dir=store_dir, db_log_path=db_log)
+        WatcherDaemon(watch_dir=watch_dir, store_dir=store_dir, db_log_path=db_log)
         
         self.assertTrue(os.path.isdir(watch_dir))
         self.assertTrue(os.path.isdir(store_dir))

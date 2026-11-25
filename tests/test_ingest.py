@@ -64,7 +64,6 @@ def test_html_file_via_load_text(tmp_path):
 
 def test_html_substack_body_html_json():
     # Substack embeds the post body as escaped JSON in window._preloads.
-    body = "<p>Nels Lindahl wrote Civic Honors.</p>"
     page = (
         '<html><head><script>window._preloads = JSON.parse('
         '"{\\"post\\":{\\"body_html\\":\\"<p>Nels Lindahl wrote Civic Honors.</p>\\"}}"'

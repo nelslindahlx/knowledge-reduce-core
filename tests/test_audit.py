@@ -83,6 +83,6 @@ class TestStoreAudit(unittest.TestCase):
             )
             store.write_drop(drop1)
             
-            with patch("sys.stdout") as mock_stdout:
+            with patch("sys.stdout"):
                 exit_code = main(["audit-store", "--store", tmpdir])
                 self.assertEqual(exit_code, 0)
