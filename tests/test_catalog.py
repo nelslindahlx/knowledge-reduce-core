@@ -87,3 +87,20 @@ def test_rebuild_is_idempotent(tmp_path, store):
     cat.rebuild(store)
     cat.rebuild(store)  # second rebuild should not double-count
     assert cat.count() == 3
+    cat.close()
+
+
+def test_catalog_context_manager_min_reliability_and_limit(tmp_path, store):
+    with Catalog(str(tmp_path / "store" / "catalog.db")) as cat:
+        cat.rebuild(store)
+        exact_ci = cat.query(reliability="verified")
+        assert len(exact_ci) == 1
+
+        ladder = cat.query(min_reliability="likely_true")
+        assert len(ladder) == 3
+
+        zero_lim = cat.query(limit=0)
+        assert zero_lim == []
+
+        with pytest.raises(ValueError, match="Unknown min_reliability"):
+            cat.query(min_reliability="bogus")

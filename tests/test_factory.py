@@ -8,7 +8,7 @@ the building block for scheduled / watch-folder automation.
 import pytest
 
 from knowledge_graph_pkg.store import KnowledgeStore
-from knowledge_graph_pkg.factory import batch_drop, scan_folder
+from knowledge_graph_pkg.factory import batch_drop, scan_folder, format_report
 
 
 def _make_sources(tmp_path):
@@ -59,3 +59,18 @@ def test_scan_folder_finds_supported_files(tmp_path):
     found = scan_folder(str(tmp_path))
     names = sorted(f.rsplit("/", 1)[-1] for f in found)
     assert names == ["a.txt", "b.md", "c.html"]
+
+
+def test_scan_folder_missing_dir_raises_consistently(tmp_path):
+    missing = str(tmp_path / "does_not_exist")
+    for recursive in (False, True):
+        with pytest.raises(FileNotFoundError):
+            scan_folder(missing, recursive=recursive)
+
+
+def test_format_report_shows_zero_facts_on_empty_drop(tmp_path):
+    empty = tmp_path / "empty.txt"
+    empty.write_text("Nothing extractable.")
+    report = batch_drop([str(empty)], str(tmp_path / "store"))
+    rendered = format_report(report)
+    assert "(0 facts)" in rendered

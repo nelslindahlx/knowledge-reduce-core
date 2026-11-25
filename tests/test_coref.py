@@ -75,3 +75,10 @@ def test_coref_is_opt_in_default_off():
     )
     statements = [kg.get_fact(i)["fact_statement"] for i in ids]
     assert any("She discovered" in s for s in statements)
+
+
+def test_sentence_opener_stopwords_are_not_treated_as_antecedents():
+    text = "However, progress stalled. It resumed later."
+    out = resolve_coreferences(text)
+    assert "However resumed" not in out
+    assert out.endswith("It resumed later.")

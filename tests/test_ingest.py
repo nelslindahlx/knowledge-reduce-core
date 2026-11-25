@@ -78,3 +78,15 @@ def test_html_substack_body_html_json():
 def test_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_text(str(tmp_path / "nope.txt"))
+
+
+def test_markdown_preserves_snake_case_and_html_separates_table_cells():
+    md = "Use `my_snake_case_var` and **bold** and _italic_."
+    out_md = markdown_to_text(md)
+    assert "my_snake_case_var" in out_md
+    assert "italic" in out_md and "_italic_" not in out_md
+
+    html = "<table><tr><th>Subject</th><th>Object</th></tr><tr><td>Marie</td><td>Radium</td></tr></table>"
+    out_html = html_to_text(html)
+    assert "Marie Radium" in out_html
+    assert "MarieRadium" not in out_html

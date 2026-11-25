@@ -41,7 +41,14 @@ _ROLE_NOUNS = {
 }
 
 # Words that should never be treated as a subject on their own.
-_NON_SUBJECT = {"this", "that", "these", "those", "there", "here", "it"}
+_NON_SUBJECT = {"this", "that", "these", "those", "there", "here"}
+
+# Relative pronouns and subordinators that introduce a nested clause rather than
+# continuing a multi-word noun phrase subject.
+_CLAUSE_BREAKERS = {
+    "which", "that", "who", "whom", "whose", "where", "when",
+    "because", "although", "while", "since", "if",
+}
 
 _SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]?")
 _WORD_RE = re.compile(r"[A-Za-z0-9'&-]+|[,]")
@@ -102,16 +109,25 @@ class SVOExtractor:
             return []
 
         # If the captured subject is a single sentence-initial capitalized
-        # word but the words immediately after it (before any copula/verb)
-        # are lowercase nouns, fold them into the subject. This handles
-        # "Civic engagement is a value choice." where only "Civic" is capped.
-        if rest:
+        # word (not a pronoun) followed by up to a few non-clause words before
+        # a copula, fold them into the subject. This handles "Civic engagement
+        # is a value choice." without swallowing active verbs or relative
+        # clauses ("Albert Einstein discovered relativity which was ...").
+        if rest and len(subj_text.split()) == 1 and subj_text.lower() not in {"he", "she", "they", "it"}:
             cop_idx = next((i for i, t in enumerate(rest) if t.lower() in _COPULA), None)
-            if cop_idx is not None and cop_idx > 0:
+            if cop_idx is not None and 0 < cop_idx <= 3:
                 extra = rest[:cop_idx]
-                if all(e.lower() not in _COPULA for e in extra):
+                if all(
+                    e.lower() not in _COPULA
+                    and e.lower() not in _CLAUSE_BREAKERS
+                    and not e.endswith(",")
+                    for e in extra
+                ):
                     subj_text = (subj_text + " " + " ".join(extra)).strip()
                     rest = rest[cop_idx:]
+
+        if subj_text.lower() in _NON_SUBJECT:
+            return []
 
         subjects = self._split_conjoined_subjects(subj_text)
 
@@ -183,8 +199,25 @@ class SVOExtractor:
 
     @staticmethod
     def _split_conjoined_subjects(subject: str) -> List[str]:
-        parts = re.split(r"\s+(?:and|&)\s+", subject)
-        return [p.strip() for p in parts if p.strip()]
+        parts: List[str] = []
+        for chunk in re.split(r"\s+and\s+", subject):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            # Keep single-word company/duo names joined by '&' intact (e.g.
+            # "Johnson & Johnson"), only splitting '&' when both sides are
+            # distinct multi-word entities.
+            amp_parts = [p.strip() for p in re.split(r"\s+&\s+", chunk) if p.strip()]
+            if (
+                len(amp_parts) == 2
+                and len(amp_parts[0].split()) >= 2
+                and len(amp_parts[1].split()) >= 2
+                and amp_parts[0].lower() != amp_parts[1].lower()
+            ):
+                parts.extend(amp_parts)
+            else:
+                parts.append(chunk)
+        return parts
 
     def _find_verb(self, tokens: List[str]) -> Optional[int]:
         """Find the index of the main verb in the post-subject tokens."""

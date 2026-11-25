@@ -35,6 +35,8 @@ class ShardedKnowledgeGraph:
             base_dir: Directory to store shards
             shard_size: Maximum number of facts per shard
         """
+        if not isinstance(shard_size, int) or isinstance(shard_size, bool) or shard_size <= 0:
+            raise ValueError("shard_size must be a positive integer.")
         self.base_dir = base_dir
         self.shard_size = shard_size
         self.shards = {}
@@ -299,95 +301,76 @@ class ShardedKnowledgeGraph:
         
     def optimize_shards(self) -> Dict[str, int]:
         """
-        Optimize shards by redistributing facts to maintain balanced shard sizes.
+        Optimize shards by redistributing facts into clean, balanced shards.
         
         Returns:
             Dictionary with optimization statistics
         """
+        old_shards = set(self._get_all_shard_ids())
         stats = {
-            'shards_before': self.get_shard_count(),
+            'shards_before': len(old_shards),
             'facts_moved': 0,
-            'shards_after': 0
+            'shards_after': 0,
         }
         
-        # Get all facts
-        all_facts = {}
+        all_facts: Dict[str, Dict[str, Any]] = {}
         for fact_id, shard_id in self.fact_to_shard.items():
-            # Load the shard if not already loaded
             if shard_id not in self.shards:
                 self._load_shard(shard_id)
-                
-            # Get the fact data
-            all_facts[fact_id] = self.shards[shard_id].get_fact(fact_id)
-            
-        # Clear existing shards
-        self.shards = {}
-        self.fact_to_shard = {}
-        
-        # Redistribute facts
-        for fact_id, fact_data in all_facts.items():
-            # Add the fact to a new shard
-            new_shard_id = self._get_shard_for_fact(fact_id)
-            
-            # Create new shard if needed
-            if new_shard_id not in self.shards:
-                self.shards[new_shard_id] = KnowledgeGraph()
-                
-            # Add fact to new shard
-            self.shards[new_shard_id].graph.add_node(fact_id, **fact_data)
-            
-            # Map fact to new shard
-            self.fact_to_shard[fact_id] = new_shard_id
-            
-            stats['facts_moved'] += 1
-            
-        # Save all shards
+            if fact_id in self.shards[shard_id].graph:
+                all_facts[fact_id] = dict(self.shards[shard_id].get_fact(fact_id))
+
+        new_shards: Dict[str, KnowledgeGraph] = {}
+        new_mapping: Dict[str, str] = {}
+
+        sorted_fact_ids = sorted(all_facts.keys())
+        for idx, fact_id in enumerate(sorted_fact_ids):
+            shard_num = (idx // self.shard_size) + 1
+            shard_id = f"shard_{shard_num:04d}"
+            if shard_id not in new_shards:
+                new_shards[shard_id] = KnowledgeGraph()
+            new_shards[shard_id].graph.add_node(fact_id, **all_facts[fact_id])
+            if self.fact_to_shard.get(fact_id) != shard_id:
+                stats['facts_moved'] += 1
+            new_mapping[fact_id] = shard_id
+
+        self.shards = new_shards
+        self.fact_to_shard = new_mapping
+
         for shard_id in self.shards:
             self._save_shard(shard_id)
-            
-        # Save fact mapping
+
+        # Remove stale shard files that are no longer part of the optimized layout.
+        for stale_id in old_shards - set(self.shards.keys()):
+            stale_path = os.path.join(self.base_dir, f"{stale_id}.json")
+            if os.path.isfile(stale_path):
+                os.remove(stale_path)
+
         self._save_fact_mapping()
-        
-        stats['shards_after'] = self.get_shard_count()
-        
+        stats['shards_after'] = len(self.shards)
         return stats
         
     def _get_shard_for_fact(self, fact_id: str) -> str:
         """
         Determine which shard a fact should be stored in.
-        
-        Args:
-            fact_id: ID of the fact
-            
-        Returns:
-            Shard ID
         """
-        # If fact already has a shard, use that
         if fact_id in self.fact_to_shard:
             return self.fact_to_shard[fact_id]
             
-        # Hash the fact ID to determine the shard
-        hash_obj = hashlib.md5(fact_id.encode())
+        hash_obj = hashlib.sha256(fact_id.encode("utf-8"))
         hash_int = int(hash_obj.hexdigest(), 16)
         
-        # Get existing shards
         existing_shards = self._get_all_shard_ids()
         
-        # If no shards exist or all are full, create a new one
         if not existing_shards or all(self._is_shard_full(shard_id) for shard_id in existing_shards):
             if not existing_shards:
                 new_shard_id = "shard_0001"
             else:
-                # Get highest shard number and increment
                 highest = max(int(shard_id.split('_')[1]) for shard_id in existing_shards)
                 new_shard_id = f"shard_{highest+1:04d}"
-                
             return new_shard_id
             
-        # Find shards that aren't full
         available_shards = [shard_id for shard_id in existing_shards if not self._is_shard_full(shard_id)]
-        
-        # Use hash to select from available shards
         selected_index = hash_int % len(available_shards)
         return available_shards[selected_index]
         
@@ -461,7 +444,10 @@ class ShardedKnowledgeGraph:
             
             # Convert enum to string
             if 'reliability_rating' in serialized_data:
-                serialized_data['reliability_rating'] = serialized_data['reliability_rating'].name
+                rel = serialized_data['reliability_rating']
+                serialized_data['reliability_rating'] = (
+                    rel.name if isinstance(rel, ReliabilityRating) else str(rel)
+                )
                 
             # Convert datetime objects to ISO format strings
             for key, value in serialized_data.items():
@@ -470,24 +456,25 @@ class ShardedKnowledgeGraph:
                     
             data[node] = serialized_data
             
-        # Save to file
-        with open(shard_path, 'w', encoding='utf-8') as f:
+        tmp_path = f"{shard_path}.tmp.{os.getpid()}"
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
+        os.replace(tmp_path, shard_path)
             
     def _save_fact_mapping(self) -> None:
         """
-        Save the fact-to-shard mapping to disk.
+        Save the fact-to-shard mapping to disk atomically.
         """
         mapping_path = os.path.join(self.base_dir, "fact_mapping.json")
-        
-        with open(mapping_path, 'w', encoding='utf-8') as f:
+        tmp_path = f"{mapping_path}.tmp.{os.getpid()}"
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(self.fact_to_shard, f, indent=2)
+        os.replace(tmp_path, mapping_path)
             
     def _load_existing_shards(self) -> None:
         """
         Load existing shards and fact mapping from disk.
         """
-        # Load fact mapping if it exists
         mapping_path = os.path.join(self.base_dir, "fact_mapping.json")
         if os.path.exists(mapping_path):
             with open(mapping_path, 'r', encoding='utf-8') as f:
@@ -495,17 +482,12 @@ class ShardedKnowledgeGraph:
                 
     def _get_all_shard_ids(self) -> List[str]:
         """
-        Get all shard IDs from disk.
-        
-        Returns:
-            List of shard IDs
+        Get all shard IDs from disk in deterministic sorted order.
         """
         shard_ids = []
         
-        # Look for shard files in the base directory
-        for filename in os.listdir(self.base_dir):
+        for filename in sorted(os.listdir(self.base_dir)):
             if filename.startswith("shard_") and filename.endswith(".json"):
-                shard_id = filename[:-5]  # Remove .json extension
-                shard_ids.append(shard_id)
+                shard_ids.append(filename[:-5])
                 
         return shard_ids

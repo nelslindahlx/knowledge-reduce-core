@@ -66,9 +66,16 @@ def triple_matches(pred: Dict[str, str], gold: Dict[str, str]) -> bool:
         return False
     if not _subobj_match(pred.get("object", ""), gold.get("object", "")):
         return False
-    # Predicate: same family, or one contains the other.
-    pf, gf = _predicate_family(pred.get("predicate", "")), _predicate_family(gold.get("predicate", ""))
-    return pf == gf or pf in gf or gf in pf
+    # Predicate: require both empty, exact match, or long-stem overlap.
+    pf = _predicate_family(pred.get("predicate", ""))
+    gf = _predicate_family(gold.get("predicate", ""))
+    if not pf and not gf:
+        return True
+    if not pf or not gf:
+        return False
+    if pf == gf:
+        return True
+    return min(len(pf), len(gf)) >= 4 and (pf in gf or gf in pf)
 
 
 def evaluate(extractor: Any, gold_items: List[GoldItem]) -> Dict[str, Any]:

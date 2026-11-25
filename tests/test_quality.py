@@ -118,3 +118,9 @@ def test_strict_predicate_blocklist_rejects_bare_copula_concept():
     # "X is Y" with a CONCEPT subject is usually a fragment; strict drops it.
     strict = FactQualityFilter(require_entity_subject=True)
     assert not strict.is_acceptable(_fact("Organizations", "is", "social", subject_type="CONCEPT"))
+
+
+def test_handles_none_fields_safely(qf):
+    bad = {"subject": None, "predicate": None, "object": None}
+    assert qf.is_acceptable(bad) is False
+    assert qf.score(bad) == 0.0

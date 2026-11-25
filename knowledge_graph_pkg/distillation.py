@@ -23,10 +23,22 @@ trustworthy facts.
 """
 
 import json
+import os
 from typing import Any, Dict, List, Optional
 
 from .core import KnowledgeGraph, ReliabilityRating
 from .quality import FactQualityFilter
+
+
+def _rating_value(rating: Any) -> int:
+    """Resolve ReliabilityRating Enum or string into its numeric rung (0 if invalid)."""
+    if isinstance(rating, ReliabilityRating):
+        return rating.value
+    if isinstance(rating, str):
+        member = ReliabilityRating.__members__.get(rating.strip().upper())
+        if member is not None:
+            return member.value
+    return 0
 
 
 class KnowledgeDistiller:
@@ -68,12 +80,13 @@ class KnowledgeDistiller:
         through the optional quality filter, de-duplicated (if enabled),
         ranked by quality score (descending), and truncated to ``top_k``.
         """
+        min_val = _rating_value(self.min_reliability) or self.min_reliability.value
         facts: List[Dict[str, Any]] = []
         for fact_id, data in self.kg.graph.nodes(data=True):
-            if "fact_statement" not in data:
+            stmt = data.get("fact_statement")
+            if not isinstance(stmt, str) or not stmt.strip():
                 continue
-            rating = data.get("reliability_rating")
-            if isinstance(rating, ReliabilityRating) and rating.value < self.min_reliability.value:
+            if _rating_value(data.get("reliability_rating")) < min_val:
                 continue
             record = dict(data)
             record["fact_id"] = fact_id
@@ -86,13 +99,13 @@ class KnowledgeDistiller:
 
         # Rank by quality score (descending), tie-break by fact_id for
         # determinism.
-        facts.sort(key=lambda f: (-f.get("quality_score", 0), f["fact_id"]))
+        facts.sort(key=lambda f: (-(f.get("quality_score") or 0), str(f["fact_id"])))
 
         if self.dedup_threshold and self.dedup_threshold > 0:
             facts = self._deduplicate(facts)
 
         if self.top_k is not None:
-            facts = facts[: self.top_k]
+            facts = facts[:max(0, int(self.top_k))]
 
         return facts
 
@@ -248,9 +261,14 @@ class KnowledgeDistiller:
             )
 
         content = serializers[fmt]()
-        with open(path, "w", encoding=encoding) as fh:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        tmp_path = f"{path}.tmp.{os.getpid()}"
+        with open(tmp_path, "w", encoding=encoding) as fh:
             fh.write(content)
             if content and not content.endswith("\n"):
                 fh.write("\n")
+        os.replace(tmp_path, path)
 
         return len([line for line in content.splitlines() if line.strip()])

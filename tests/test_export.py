@@ -86,3 +86,15 @@ def test_factstore_normalizes_whitespace_and_case():
     store.add("Marie Curie discovered radium.")
     # case + spacing variation should still count as a duplicate
     assert store.add("  marie   curie discovered RADIUM. ") is False
+
+
+def test_estimate_tokens_empty_and_factstore_load_normalization(tmp_path):
+    assert estimate_tokens("") == 0
+    assert estimate_tokens("   ") == 0
+
+    path = tmp_path / "seen.json"
+    path.write_text(json.dumps({"seen": ["  Unnormalized   FACT. "]}), encoding="utf-8")
+    store = FactStore(path=str(path)).load()
+    assert "unnormalized fact." in store
+    assert None not in store
+    assert store.add(None) is False  # type: ignore[arg-type]

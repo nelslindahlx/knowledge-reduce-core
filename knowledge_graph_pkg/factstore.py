@@ -16,7 +16,9 @@ import re
 from typing import Optional, Set
 
 
-def _normalize(statement: str) -> str:
+def _normalize(statement: Optional[str]) -> str:
+    if not isinstance(statement, str):
+        statement = str(statement or "")
     return re.sub(r"\s+", " ", statement.strip().lower())
 
 
@@ -30,10 +32,11 @@ class FactStore:
     def __len__(self) -> int:
         return len(self._seen)
 
-    def __contains__(self, statement: str) -> bool:
-        return _normalize(statement) in self._seen
+    def __contains__(self, statement: Optional[str]) -> bool:
+        key = _normalize(statement)
+        return bool(key) and key in self._seen
 
-    def add(self, statement: str) -> bool:
+    def add(self, statement: Optional[str]) -> bool:
         """Record a fact. Returns True if new, False if already seen."""
         key = _normalize(statement)
         if not key or key in self._seen:
@@ -46,15 +49,20 @@ class FactStore:
         if self.path and os.path.isfile(self.path):
             with open(self.path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
-            self._seen.update(data.get("seen", []))
+            for item in data.get("seen", []):
+                key = _normalize(item)
+                if key:
+                    self._seen.add(key)
         return self
 
     def save(self) -> None:
-        """Persist fingerprints to ``path`` (no-op if path is unset)."""
+        """Persist fingerprints to ``path`` atomically (no-op if path is unset)."""
         if not self.path:
             return
         parent = os.path.dirname(self.path)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        with open(self.path, "w", encoding="utf-8") as fh:
+        tmp_path = f"{self.path}.tmp.{os.getpid()}"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump({"seen": sorted(self._seen)}, fh, ensure_ascii=False, indent=0)
+        os.replace(tmp_path, self.path)

@@ -11,6 +11,16 @@ from typing import Dict, List, Any, Union, Optional, Tuple, Set
 from .core import KnowledgeGraph, ReliabilityRating
 
 
+def _rating_enum(val: Any) -> ReliabilityRating:
+    if isinstance(val, ReliabilityRating):
+        return val
+    if isinstance(val, str):
+        member = ReliabilityRating.__members__.get(val.strip().upper())
+        if member is not None:
+            return member
+    return ReliabilityRating.UNVERIFIED
+
+
 class KnowledgeGraphAnalyzer:
     """
     Class for analyzing knowledge graphs and extracting insights.
@@ -86,7 +96,7 @@ class KnowledgeGraphAnalyzer:
         
         for _, data in self.kg.graph.nodes(data=True):
             if 'reliability_rating' in data:
-                rating_name = data['reliability_rating'].name
+                rating_name = _rating_enum(data['reliability_rating']).name
                 summary[rating_name] += 1
                 
         return summary
@@ -133,12 +143,18 @@ class KnowledgeGraphAnalyzer:
                     continue
                     
                 # Check if statements are similar but reliability differs significantly
-                statement_i = data_i['fact_statement'].lower()
-                statement_j = data_j['fact_statement'].lower()
-                
+                stmt_i = data_i.get('fact_statement')
+                stmt_j = data_j.get('fact_statement')
+                if not isinstance(stmt_i, str) or not isinstance(stmt_j, str):
+                    continue
+                statement_i = stmt_i.lower()
+                statement_j = stmt_j.lower()
+                rel_i = _rating_enum(data_i.get('reliability_rating')).value
+                rel_j = _rating_enum(data_j.get('reliability_rating')).value
+
                 # Simple similarity check - can be improved with NLP techniques
                 if (self._simple_similarity(statement_i, statement_j) > 0.7 and
-                    abs(data_i['reliability_rating'].value - data_j['reliability_rating'].value) >= 2):
+                    abs(rel_i - rel_j) >= 2):
                     contradictions.append((node_i, node_j))
                     
         return contradictions
@@ -166,8 +182,8 @@ class KnowledgeGraphAnalyzer:
             
         for node, data in self.kg.graph.nodes(data=True):
             # Base score from reliability and usage
-            reliability_score = data.get('reliability_rating', ReliabilityRating.UNVERIFIED).value
-            usage_score = data.get('usage_count', 0)
+            reliability_score = _rating_enum(data.get('reliability_rating')).value
+            usage_score = data.get('usage_count', 0) or 0
             
             # Graph structure factors
             centrality_score = centrality.get(node, 0) * 10  # Scale up centrality
@@ -266,8 +282,17 @@ class KnowledgeGraphAnalyzer:
             
         # Compare tags
         if 'tags' in data1 and 'tags' in data2:
-            tags1 = set(data1['tags'].split(',')) if isinstance(data1['tags'], str) else set(data1['tags'])
-            tags2 = set(data2['tags'].split(',')) if isinstance(data2['tags'], str) else set(data2['tags'])
+            raw1, raw2 = data1['tags'], data2['tags']
+            tags1 = (
+                {t.strip().lower() for t in raw1.split(',') if t.strip()}
+                if isinstance(raw1, str)
+                else {str(t).strip().lower() for t in raw1 if str(t).strip()}
+            )
+            tags2 = (
+                {t.strip().lower() for t in raw2.split(',') if t.strip()}
+                if isinstance(raw2, str)
+                else {str(t).strip().lower() for t in raw2 if str(t).strip()}
+            )
             
             if tags1 and tags2:
                 tags_sim = len(tags1.intersection(tags2)) / len(tags1.union(tags2))

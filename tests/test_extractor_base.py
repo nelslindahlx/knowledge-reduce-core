@@ -49,3 +49,54 @@ def test_get_extractor_spacy_without_install_gives_clear_error():
         pytest.skip("spaCy is installed; the error path isn't exercised")
     with pytest.raises(ImportError, match="nlp"):
         get_extractor("spacy")
+
+
+def test_spacy_extractor_keeps_lemmatizer_enabled_with_mock():
+    import sys
+    import types
+    from unittest.mock import patch
+
+    load_calls = []
+
+    class _Tok:
+        def __init__(self, i, text, pos="", dep="", lemma="", children=None, subtree=None):
+            self.i = i
+            self.text = text
+            self.pos_ = pos
+            self.dep_ = dep
+            self.lemma_ = lemma
+            self.children = children or []
+            self.subtree = subtree if subtree is not None else [self]
+
+    class _Sent:
+        def __init__(self, text, tokens):
+            self.text = text
+            self._tokens = tokens
+
+        def __iter__(self):
+            return iter(self._tokens)
+
+    subj_tok = _Tok(0, "Marie", dep="nsubj")
+    obj_tok = _Tok(2, "radium", dep="dobj")
+    verb_tok = _Tok(1, "discovered", pos="VERB", lemma="discover", children=[subj_tok, obj_tok])
+    sent = _Sent("Marie discovered radium.", [subj_tok, verb_tok, obj_tok])
+    doc = types.SimpleNamespace(sents=[sent])
+
+    fake_spacy = types.ModuleType("spacy")
+
+    def _fake_load(model, disable=None):
+        load_calls.append((model, list(disable or [])))
+        return lambda text: doc
+
+    fake_spacy.load = _fake_load  # type: ignore[attr-defined]
+
+    with patch.dict(sys.modules, {"spacy": fake_spacy}):
+        from knowledge_graph_pkg.spacy_extractor import SpacyExtractor
+        ex = SpacyExtractor()
+        rels = ex.extract("Marie discovered radium.")
+
+    assert load_calls == [("en_core_web_sm", ["ner"])]
+    assert len(rels) == 1
+    assert rels[0]["subject"] == "Marie"
+    assert rels[0]["predicate"] == "discover"
+    assert rels[0]["object"] == "radium"

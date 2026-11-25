@@ -54,3 +54,26 @@ def test_update_fact_changes_value():
     kg = make_kg_with_fact()
     kg.update_fact("f1", usage_count=99)
     assert kg.get_fact("f1")["usage_count"] == 99
+
+
+def test_update_fact_validates_atomically_and_normalizes_types():
+    kg = make_kg_with_fact(rating=ReliabilityRating.UNVERIFIED, usage=1)
+    before_notes = kg.get_fact("f1")["contextual_notes"]
+
+    # Invalid attribute must raise ValueError without applying partial updates.
+    with pytest.raises(ValueError, match="Invalid attribute"):
+        kg.update_fact("f1", contextual_notes="partial_write", unknown_field="bad")
+    assert kg.get_fact("f1")["contextual_notes"] == before_notes
+
+    with pytest.raises(ValueError):
+        kg.update_fact("f1", reliability_rating="VERIFIED")  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError):
+        kg.update_fact("f1", usage_count=True)  # type: ignore[arg-type]
+
+    dt = datetime(2026, 2, 3, 4, 5, 6)
+    kg.update_fact("f1", tags=["alpha", "beta"], last_updated=dt, reliability_rating=ReliabilityRating.VERIFIED, usage_count=5)
+    fact = kg.get_fact("f1")
+    assert fact["tags"] == "alpha, beta"
+    assert fact["last_updated"] == dt.isoformat()
+    assert fact["quality_score"] == 4 * 10 + 5 * 2

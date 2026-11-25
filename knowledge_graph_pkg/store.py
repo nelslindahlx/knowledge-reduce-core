@@ -23,10 +23,36 @@ step that assembles training sets as reproducible views over the store.
 import hashlib
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Iterator, List, Optional
+
+
+def _safe_drop_id(drop_id: str) -> str:
+    """Return a filesystem-safe single-segment identifier for a drop."""
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", str(drop_id or "")).strip("._")
+    return cleaned or "drop"
+
+
+def _partition_from_timestamp(created_at: Any) -> str:
+    """Return a safe ``YYYY/MM`` relative partition path from ``created_at``."""
+    prefix = str(created_at or "")[:7]
+    if not re.fullmatch(r"\d{4}-\d{2}", prefix):
+        prefix = _utc_now()[:7]
+    year, month = prefix.split("-", 1)
+    return os.path.join(year, month)
+
+
+def _is_within(base: str, target: str) -> bool:
+    """Return True iff ``target`` resolves inside directory ``base``."""
+    base_abs = os.path.abspath(base)
+    target_abs = os.path.abspath(target)
+    try:
+        return os.path.commonpath([base_abs, target_abs]) == base_abs
+    except ValueError:
+        return False
 
 
 def _json_safe(value: Any) -> Any:
@@ -141,15 +167,25 @@ class KnowledgeStore:
         return {"schema_version": SCHEMA_VERSION, "drops": []}
 
     def _save_manifest(self) -> None:
-        with open(self.manifest_path, "w", encoding="utf-8") as fh:
+        tmp_path = f"{self.manifest_path}.tmp.{os.getpid()}"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
             json.dump(self._manifest, fh, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, self.manifest_path)
 
     def _shard_path(self, drop: Drop) -> str:
         # Partition by year/month of creation for tidy growth.
-        dt = drop.created_at[:7].replace("-", os.sep)  # YYYY/MM
+        dt = _partition_from_timestamp(drop.created_at)
         subdir = os.path.join(self.shards_dir, dt)
         os.makedirs(subdir, exist_ok=True)
-        return os.path.join(subdir, f"{drop.drop_id}.jsonl")
+        safe_id = _safe_drop_id(drop.drop_id)
+        candidate = os.path.join(subdir, f"{safe_id}.jsonl")
+        version = 2
+        while os.path.exists(candidate):
+            candidate = os.path.join(subdir, f"{safe_id}-v{version}.jsonl")
+            version += 1
+        if not _is_within(self.shards_dir, candidate):
+            raise ValueError(f"Unsafe shard path for drop_id {drop.drop_id!r}")
+        return candidate
 
     # ------------------------------------------------------------------ #
     def write_drop(self, drop: Drop) -> str:
@@ -160,13 +196,15 @@ class KnowledgeStore:
         one fact, so shards stream cleanly without loading everything.
         """
         path = self._shard_path(drop)
-        with open(path, "w", encoding="utf-8") as fh:
+        tmp_path = f"{path}.tmp.{os.getpid()}"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
             header = {k: _json_safe(v) for k, v in drop.to_dict().items() if k != "facts"}
             header["record"] = "header"
             fh.write(json.dumps(header, ensure_ascii=False) + "\n")
             for fact in drop.facts:
                 safe = _json_safe(fact)
-                fh.write(json.dumps({"record": "fact", **safe}, ensure_ascii=False) + "\n")
+                fh.write(json.dumps({**safe, "record": "fact"}, ensure_ascii=False) + "\n")
+        os.replace(tmp_path, path)
 
         rel = os.path.relpath(path, self.root)
         entry = drop.summary()
@@ -187,8 +225,9 @@ class KnowledgeStore:
     def iter_facts(self) -> Iterator[Dict[str, Any]]:
         """Yield every fact across all shards, tagged with its drop_id/source."""
         for entry in self._manifest.get("drops", []):
-            shard = os.path.join(self.root, entry["shard"])
-            if not os.path.isfile(shard):
+            rel_shard = entry.get("shard") or ""
+            shard = os.path.join(self.root, rel_shard)
+            if not rel_shard or not _is_within(self.root, shard) or not os.path.isfile(shard):
                 continue
             with open(shard, "r", encoding="utf-8") as fh:
                 for line in fh:
@@ -207,7 +246,7 @@ class KnowledgeStore:
         return {
             "total_drops": len(drops),
             "total_facts": sum(d.get("num_facts", 0) for d in drops),
-            "sources": sorted({d.get("source") for d in drops}),
+            "sources": sorted({str(d["source"]) for d in drops if d.get("source") is not None}),
             "schema_version": self._manifest.get("schema_version", SCHEMA_VERSION),
         }
 
@@ -215,32 +254,36 @@ class KnowledgeStore:
         """Perform diagnostic analysis over the drops and facts in the store."""
         drops = self.list_drops()
         total_facts = 0
-        reliability_counts = {}
+        reliability_counts: Dict[str, int] = {}
         missing_svo_count = 0
         duplicate_svo_count = 0
-        
+
         seen_svo = set()
-        
+
         for fact in self.iter_facts():
             total_facts += 1
-            
-            rel = fact.get("reliability") or "UNVERIFIED"
+
+            raw_rel = fact.get("reliability_rating") or fact.get("reliability") or "UNVERIFIED"
+            if isinstance(raw_rel, Enum):
+                rel = raw_rel.name
+            else:
+                rel = str(raw_rel).strip().upper() or "UNVERIFIED"
             reliability_counts[rel] = reliability_counts.get(rel, 0) + 1
-            
+
             subj = str(fact.get("subject") or "").strip()
             pred = str(fact.get("predicate") or "").strip()
             obj = str(fact.get("object") or "").strip()
-            stmt = str(fact.get("statement") or "").strip()
-            
+            stmt = str(fact.get("fact_statement") or fact.get("statement") or "").strip()
+
             if not subj or not pred or not obj or not stmt:
                 missing_svo_count += 1
-            
+
             svo_key = (subj.lower(), pred.lower(), obj.lower())
             if svo_key in seen_svo:
                 duplicate_svo_count += 1
             else:
                 seen_svo.add(svo_key)
-                
+
         return {
             "total_drops": len(drops),
             "total_facts": total_facts,

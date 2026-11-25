@@ -163,5 +163,21 @@ During Phase 3 (`critique.py`, `model_probe.py`, `consensus.py`, `model_eval.py`
 * Fail closed (`is_factual=False`) on critique parsing/backend errors and validate boolean strings explicitly instead of relying on Python's truthiness (`bool("false") is True`).
 * Measure dataset recall against matched gold items (`matched_gold / len(positives)`), not shard prediction counts, so duplicate extracted triples cannot inflate recall past true gold coverage.
 
+---
+
+## 16. Serialization Round-Trips, Capped Similarity Math & Method-Level LRU Cache Traps
+
+### Context
+During Phase 4 (`store.py`, `lifecycle.py`, `semantic.py`, `enhanced.py`, `utils.py`, `blockchain.py`, `sharding.py`, `visualization.py`), multiple serialization and stateful bugs were uncovered:
+1. Producer/consumer key drift: `store.audit_summary()` expected legacy `"reliability"`/`"statement"` keys while canonical drops wrote `"reliability_rating"`/`"fact_statement"`, whereas `EnhancedKnowledgeGraph.load_from_file()`, `utils.import_from_json()`, and `BlockchainKnowledgeGraph.verify_fact()` failed on `KnowledgeGraph`'s own output (`quality_score` kwarg, comma-string `tags`, `Enum` serialization).
+2. `SemanticKnowledgeGraph._calculate_semantic_similarity()` multiplied cosine dot products by `0.405` without scaling magnitudes, capping similarity at `0.405` and causing `find_semantically_similar_facts(threshold=0.5)` to return `[]`.
+3. `@lru_cache` on `EnhancedKnowledgeGraph` instance methods pinned `self` references, ignored `cache_enabled=False`, and became stale when mutations skipped `cache_clear()`.
+4. `reextract_store()` re-extracted its own `-reextract-` drops on repeat runs, multiplying drops exponentially, and `ShardedKnowledgeGraph.optimize_shards()` cleared memory without deleting stale `.json` files from disk.
+
+### Lesson Learned
+* Always test full round-trips across every storage/export/import boundary (`save` -> `load`, `export` -> `import`, `add_fact` -> `verify_fact`, `reextract_store` x 2, `optimize_shards` -> reload) in `tmp_path` so schema and attribute conversions stay symmetric.
+* Prefer explicit per-instance dict caches cleared unconditionally on writes over `@lru_cache` on mutable stateful classes.
+* When writing generator-style corpus maintenance (`reextract_store`, `optimize_shards`), explicitly skip or replace derived artifacts so repeat runs remain idempotent.
+
 
 

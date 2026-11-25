@@ -71,3 +71,10 @@ def test_evaluate_perfect_on_trivial_gold():
                               "object": "Bowling Alone"}])]
     report = evaluate(SVOExtractor(), items)
     assert report["f1"] == 1.0
+
+
+def test_triple_matches_rejects_empty_or_short_substring_predicates():
+    gold = {"subject": "Marie Curie", "predicate": "discovered", "object": "radium"}
+    assert not triple_matches({"subject": "Marie Curie", "predicate": "", "object": "radium"}, gold)
+    assert not triple_matches({"subject": "Marie Curie", "predicate": "is_a", "object": "radium"}, gold)
+    assert triple_matches({"subject": "Marie Curie", "predicate": "discover", "object": "radium"}, gold)

@@ -134,3 +134,16 @@ def test_stats_reports_reduction(populated_kg):
     assert s["total_facts"] == 3
     assert s["selected_facts"] == 2
     assert 0.0 <= s["reduction_ratio"] <= 1.0
+
+
+def test_select_facts_handles_string_ratings_none_quality_and_zero_top_k():
+    kg = KnowledgeGraph()
+    kg.graph.add_node("f_str_low", fact_statement="Low string rating fact.", reliability_rating="UNVERIFIED", quality_score=100)
+    kg.graph.add_node("f_none_rel", fact_statement="Missing rating fact.", quality_score=None)
+    kg.graph.add_node("f_str_high", fact_statement="High string rating fact.", reliability_rating="VERIFIED", quality_score=None)
+
+    d = KnowledgeDistiller(kg, min_reliability=ReliabilityRating.LIKELY_TRUE)
+    ids = [f["fact_id"] for f in d.select_facts()]
+    assert ids == ["f_str_high"]
+
+    assert KnowledgeDistiller(kg, top_k=0).select_facts() == []

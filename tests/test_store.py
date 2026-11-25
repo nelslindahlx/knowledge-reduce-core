@@ -117,3 +117,46 @@ def test_manifest_is_valid_json(tmp_path):
     manifest = json.loads((tmp_path / "store" / "manifest.json").read_text())
     assert manifest["schema_version"] == SCHEMA_VERSION
     assert len(manifest["drops"]) == 1
+
+
+def test_drop_id_and_partition_traversal_sanitized_and_non_overwriting(tmp_path):
+    store = KnowledgeStore(str(tmp_path / "store"))
+    d1 = Drop(
+        drop_id="../../escape",
+        source="a.txt",
+        source_hash=content_hash("a"),
+        facts=[{**_facts()[0], "record": "bogus_override"}],
+        created_at="../bad-date",
+    )
+    shard1 = Path(store.write_drop(d1)).resolve()
+    assert str(shard1).startswith(str((tmp_path / "store" / "shards").resolve()))
+
+    # Re-using same drop_id appends -v2 without overwriting shard1 on disk.
+    d2 = Drop(
+        drop_id="../../escape",
+        source="b.txt",
+        source_hash=content_hash("b"),
+        facts=[_facts()[1]],
+        created_at="../bad-date",
+    )
+    shard2 = Path(store.write_drop(d2)).resolve()
+    assert shard2 != shard1
+    assert shard1.exists() and shard2.exists()
+
+    facts = list(store.iter_facts())
+    assert len(facts) == 2
+
+
+def test_iter_facts_ignores_tampered_manifest_shard_and_stats_handles_none_source(tmp_path):
+    store = KnowledgeStore(str(tmp_path / "store"))
+    store.write_drop(Drop("d1", None, content_hash("x"), _facts()))  # type: ignore[arg-type]
+    assert store.stats()["sources"] == []
+
+    # Inject a traversal entry in manifest and verify iter_facts ignores it safely.
+    manifest_path = tmp_path / "store" / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["drops"].append({"drop_id": "evil", "source": "evil", "shard": "../../etc/passwd"})
+    manifest_path.write_text(json.dumps(manifest))
+
+    reopened = KnowledgeStore(str(tmp_path / "store"))
+    assert len(list(reopened.iter_facts())) == 2

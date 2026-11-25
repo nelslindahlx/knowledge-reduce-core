@@ -76,7 +76,7 @@ class SemanticKnowledgeGraph:
             add(match.group(1), 'LOCATION', match.start(1), match.end(1))
 
         # Dates.
-        date_pattern = r'\b(\d{1,2}/\d{1,2}/\d{2,4})|(\d{1,2}-\d{1,2}-\d{2,4})|(\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{2,4})\b'
+        date_pattern = r'\b(?:\d{1,2}/\d{1,2}/\d{2,4}|\d{1,2}-\d{1,2}-\d{2,4}|\d{1,2} (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{2,4})\b'
         for match in re.finditer(date_pattern, text):
             add(match.group(0), 'DATE', match.start(), match.end())
 
@@ -185,6 +185,8 @@ class SemanticKnowledgeGraph:
     _PREDICATE_VERBALIZATION = {
         'works_for': 'works for',
         'located_in': 'is located in',
+        'based_in': 'is based in',
+        'situated_in': 'is situated in',
         'founded': 'founded',
         'owns': 'owns',
         'part_of': 'is part of',
@@ -198,6 +200,11 @@ class SemanticKnowledgeGraph:
         'wrote': 'wrote',
         'directed': 'directed',
         'acted_in': 'acted in',
+        'is_a': 'is a',
+        'president_of': 'was president of',
+        'director_of': 'was director of',
+        'founder_of': 'was founder of',
+        'author_of': 'was author of',
     }
 
     def verbalize_relation(self, relation: Dict[str, Any]) -> str:
@@ -266,29 +273,37 @@ class SemanticKnowledgeGraph:
         now = datetime.now()
         
         # Create facts from relations
-        for i, relation in enumerate(relations):
-            fact_id = f"auto_{source_id}_{i}"
-            
+        idx = 0
+        for relation in relations:
+            fact_id = f"auto_{source_id}_{idx}"
+            while fact_id in self.kg.graph:
+                idx += 1
+                fact_id = f"auto_{source_id}_{idx}"
+            idx += 1
+
             # Create fact statement from relation (natural-language form)
             fact_statement = self.verbalize_relation(relation)
-            
+
+            subj_type = relation.get('subject_type') or 'ENTITY'
+            obj_type = relation.get('object_type') or 'CONCEPT'
+
             # Determine category based on entity types
-            if relation['subject_type'] == 'PERSON' and relation['object_type'] == 'ORGANIZATION':
+            if subj_type == 'PERSON' and obj_type == 'ORGANIZATION':
                 category = 'Employment'
-            elif relation['subject_type'] == 'PERSON' and relation['object_type'] == 'LOCATION':
+            elif subj_type == 'PERSON' and obj_type == 'LOCATION':
                 category = 'Location'
-            elif relation['subject_type'] == 'ORGANIZATION' and relation['object_type'] == 'LOCATION':
+            elif subj_type == 'ORGANIZATION' and obj_type == 'LOCATION':
                 category = 'Business'
             else:
                 category = 'General'
-            
+
             # Create tags from entity types and text
             tags = [
-                relation['subject_type'].lower(),
-                relation['object_type'].lower(),
-                relation['predicate'].lower()
+                str(subj_type).lower(),
+                str(obj_type).lower(),
+                str(relation['predicate']).lower()
             ]
-            
+
             try:
                 # Add the fact to the knowledge graph
                 self.kg.add_fact(
@@ -300,12 +315,12 @@ class SemanticKnowledgeGraph:
                     last_updated=now,
                     reliability_rating=reliability,
                     source_id=source_id,
-                    source_title=f"Auto-extracted from text",
+                    source_title="Auto-extracted from text",
                     author_creator="Semantic Extractor",
                     publication_date=now,
                     url_reference="",
                     related_facts=[],
-                    contextual_notes=f"Extracted from text: {relation['text']}",
+                    contextual_notes=f"Extracted from text: {relation.get('text', '')}",
                     access_level="public",
                     usage_count=1
                 )
@@ -315,8 +330,10 @@ class SemanticKnowledgeGraph:
                 question, answer = self._qa_generator.generate(relation)
                 node = self.kg.graph.nodes[fact_id]
                 node['subject'] = relation['subject']
+                node['subject_type'] = relation.get('subject_type')
                 node['predicate'] = relation['predicate']
                 node['object'] = relation['object']
+                node['object_type'] = relation.get('object_type')
                 node['question'] = question
                 node['answer'] = answer
 
@@ -536,18 +553,15 @@ class SemanticKnowledgeGraph:
         if not common_words:
             return 0.0
         
-        # Calculate dot product with TF-IDF-like weighting
-        dot_product = 0
-        for word in common_words:
-            # Simple inverse document frequency weight: log(3/2) if word appears in both texts
-            idf = 0.405  # log(3/2) ≈ 0.405
-            dot_product += freq1[word] * freq2[word] * idf
-        
+        # Calculate dot product over term-frequency vectors
+        dot_product = sum(freq1[word] * freq2[word] for word in common_words)
+
         # Calculate magnitudes
         mag1 = sum(freq1[word]**2 for word in freq1)
         mag2 = sum(freq2[word]**2 for word in freq2)
-        
-        # Calculate cosine similarity
-        similarity = dot_product / (mag1**0.5 * mag2**0.5)
-        
-        return similarity
+
+        # Calculate cosine similarity cleanly in [0.0, 1.0]
+        denom = mag1**0.5 * mag2**0.5
+        if denom == 0:
+            return 0.0
+        return min(1.0, max(0.0, dot_product / denom))
