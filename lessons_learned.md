@@ -138,5 +138,18 @@ During the `v0.4.0` full-codebase audit, unit tests in `tests/test_watcher.py` a
 * Centralize record normalization (`normalize_fact_record` in `knowledge_graph_pkg/graph_store_base.py`) so `KuzuStore` and `Neo4jStore` accept identical canonical and legacy fact fields and perform idempotent `MERGE ... SET` updates.
 * Validate HTTP workspace identifiers (`x-workspace-id`), JWT signatures (`MCP_JWT_SECRET` without plaintext bypasses), WebSocket tenant partitioning, and read-only Cypher guards (`GraphTools.graph_query`) mechanically in `tests/test_mcp_server.py` and `tests/test_graph_tool.py`.
 
+---
+
+## 14. Boundary-Aware Alias Resolution & NetworkX PageRank Fallback
+
+### Context
+During Phase 2 review (`entity_resolution.py`, `rag.py`), two subtle failure modes surfaced:
+1. Substring matching inside `_jaccard_similarity()` treated any arbitrary substring (`"AI"` in `"Brain Activation"`, `"Fe"` in `"Infection"`) as `1.0`, while deleting the entire graph and rewriting `RELATED` edges away.
+2. In NetworkX 3.x without `scipy` installed, `nx.pagerank(graph)` raises `ModuleNotFoundError: No module named 'scipy'`, which a broad `except Exception:` silently flattened to uniform `1/N` scores across all facts; meanwhile PageRank caching ignored edge additions when node counts stayed constant.
+
+### Lesson Learned
+* Restrict high-confidence `1.0` entity matching to exact normalized matches, parenthetical acronyms/initials (`"Adenosine Triphosphate (ATP)"` <-> `"ATP"`, `"Large Language Model"` <-> `"LLM"`), and long single-character chemical prefixes (`"D-Glucose"` <-> `"Glucose"`), and rewrite statements on word boundaries after writing merged nodes and remapping `RELATED` edges.
+* Track `(store.count(), store.edge_count())` for PageRank cache invalidation, and fall back to pure-Python power iteration when `nx.pagerank()` raises `ImportError` so Graph-RAG ranking stays accurate even in minimal installs without `scipy`.
+
 
 

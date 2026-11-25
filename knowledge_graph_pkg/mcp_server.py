@@ -62,19 +62,6 @@ def _verify_jwt_token(token: Optional[str]) -> Optional[str]:
         return "invalid token signature or expired claim"
 
 
-def _format_rag_facts(facts: List[Dict[str, Any]]) -> str:
-    if not facts:
-        return "No relevant facts found in the knowledge graph."
-    lines = ["### Knowledge Graph Facts:"]
-    for f in facts:
-        reliability_str = f.get("reliability") or "UNVERIFIED"
-        lines.append(
-            f"- **{f.get('subject', '')}** {f.get('predicate', '')} **{f.get('object', '')}** "
-            f"(Statement: \"{f.get('statement', '')}\", Reliability: {reliability_str})"
-        )
-    return "\n".join(lines)
-
-
 def list_tools() -> list:
     """Return the tool schemas (for LLM function-calling / MCP registration)."""
     return TOOL_SCHEMAS
@@ -1424,8 +1411,8 @@ def make_fastapi_app(tools: Any) -> Any:
             from .ontology import OntologyDistiller
 
             distiller = OntologyDistiller(ws_tools.store)
-            sem_types = distiller.infer_semantic_types()
-            taxonomy = distiller.distill_taxonomy()
+            sem_types = distiller.infer_semantic_types(facts=nodes)
+            taxonomy = distiller.distill_taxonomy(facts=nodes)
 
             parent_classes = {}
             for parent, children in taxonomy.items():
@@ -1462,7 +1449,7 @@ def make_fastapi_app(tools: Any) -> Any:
             retrieved_facts = retriever.retrieve(
                 query, hops=hops, exclude_unverified=exclude_unverified
             )
-            formatted_context = _format_rag_facts(retrieved_facts)
+            formatted_context = retriever.format_facts(retrieved_facts)
             return {
                 "facts": retrieved_facts,
                 "context": formatted_context,

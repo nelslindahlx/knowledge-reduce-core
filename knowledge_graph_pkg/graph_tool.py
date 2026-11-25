@@ -129,11 +129,7 @@ class GraphTools:
         from .ontology import OntologyDistiller
 
         distiller = OntologyDistiller(self.store)
-        return {
-            "taxonomy": distiller.distill_taxonomy(),
-            "semantic_types": distiller.infer_semantic_types(),
-            "relation_schema": distiller.infer_relation_schema(),
-        }
+        return distiller.distill_all()
 
 
 # JSON-schema tool definitions for LLM function-calling / MCP registration.

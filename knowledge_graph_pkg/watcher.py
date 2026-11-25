@@ -184,11 +184,7 @@ class WatcherDaemon:
 
                 os.makedirs(self.distill_dir, exist_ok=True)
                 distiller = OntologyDistiller(kstore)
-                summary = {
-                    "taxonomy": distiller.distill_taxonomy(),
-                    "semantic_types": distiller.infer_semantic_types(),
-                    "relation_schema": distiller.infer_relation_schema(),
-                }
+                summary = distiller.distill_all()
 
                 out_path = os.path.join(self.distill_dir, "ontology_summary.json")
                 tmp_path = f"{out_path}.tmp"
