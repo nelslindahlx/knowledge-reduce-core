@@ -10,7 +10,7 @@ and it grows the store unattended, reporting what it did.
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Extensions the ingest layer can handle (PDF requires the [pdf] extra).
 _SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".html", ".htm", ".pdf"}
@@ -55,7 +55,7 @@ def batch_drop(sources: List[str], store_dir: str,
         "likely_true": ReliabilityRating.LIKELY_TRUE,
         "verified": ReliabilityRating.VERIFIED,
     }
-    reliability_enum = rel_map.get(reliability, ReliabilityRating.LIKELY_TRUE)
+    reliability_enum = rel_map.get(str(reliability).lower(), ReliabilityRating.LIKELY_TRUE)
 
     extractor = None
     if engine != "svo":
@@ -104,6 +104,7 @@ def batch_drop(sources: List[str], store_dir: str,
 
             item["status"] = "dropped"
             item["facts"] = len(facts)
+            item["fact_records"] = drop.facts
             report["dropped"] += 1
             report["total_facts"] += len(facts)
         except Exception as exc:  # noqa: BLE001 - report, don't crash the batch
