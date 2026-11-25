@@ -1,8 +1,14 @@
 """
 Tests for ModelReduce probe templates (Session 1).
 """
+
+from knowledge_graph_pkg.core import KnowledgeGraph
 from knowledge_graph_pkg.probe_templates import (
-    PROMPT_TEMPLATES, render_prompt, generate_probes, PROMPT_TYPES,
+    PROMPT_TEMPLATES,
+    PROMPT_TYPES,
+    generate_probes,
+    render_prompt,
+    seed_entities_from_graph,
 )
 
 
@@ -50,7 +56,15 @@ def test_generate_probes_deterministic():
     assert [x["prompt"] for x in a] == [x["prompt"] for x in b]
 
 
-def test_generate_probes_without_entities_still_works():
-    # list/concept/negative templates can run on the domain alone
+def test_generate_probes_without_entities_varies_prompts():
     probes = generate_probes("law", entities=[], n_prompts=5, seed=1)
     assert len(probes) == 5
+    distinct = {pr["prompt"] for pr in probes}
+    assert len(distinct) == 5
+
+
+def test_seed_entities_from_graph_respects_zero_limit():
+    kg = KnowledgeGraph()
+    kg.graph.add_node("f1", subject="Mitochondria", predicate="produce", object="ATP")
+    assert seed_entities_from_graph(kg, limit=0) == []
+    assert seed_entities_from_graph(kg, limit=5) == ["Mitochondria"]
