@@ -38,9 +38,9 @@ try:  # single source of truth: version comes from package metadata (pyproject)
     try:
         __version__ = _pkg_version("knowledgereduce")
     except PackageNotFoundError:  # not installed (e.g. raw source tree)
-        __version__ = "0.2.0"
+        __version__ = "0.3.0"
 except ImportError:  # pragma: no cover - very old Python
-    __version__ = "0.2.0"
+    __version__ = "0.3.0"
 __all__ = [
     'KnowledgeGraph',
     'ReliabilityRating',

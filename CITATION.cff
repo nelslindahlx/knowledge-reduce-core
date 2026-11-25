@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use KnowledgeReduce Core in your research, please cite the software below."
+authors:
+  - family-names: "Lindahl"
+    given-names: "Nels"
+    orcid: "https://orcid.org/0000-0002-1855-6096"
+title: "KnowledgeReduce Core"
+version: "0.3.0"
+date-released: 2026-07-18
+license: "MIT"
+repository-code: "https://github.com/nelslindahlx/knowledge-reduce-core"
+url: "https://github.com/nelslindahlx/knowledge-reduce-core"

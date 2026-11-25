@@ -586,6 +586,10 @@ For detailed documentation, see the docstrings in the source code or run:
 help(knowledge_graph_pkg)
 ```
 
+## Governance & Local CI
+
+Routine development follows the Maker/Checker Pull Request workflow documented in `AGENTS.md` and `CONTRIBUTING.md`. GitHub Actions workflows under `.github/workflows/` are restricted to manual `workflow_dispatch` triggers so normal PRs consume zero GitHub Actions minutes; run local verification via `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-fail-under=58`) and audit open PRs/branches with `make audit-prs`.
+
 ## License
 
 MIT

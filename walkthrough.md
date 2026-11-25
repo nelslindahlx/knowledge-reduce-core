@@ -13,8 +13,8 @@ In this latest step, we resolved additional architectural constraints highlighte
 ## 📋 Store Audit Diagnostics (`audit-store`)
 
 We implemented a new CLI subcommand and database audit utility:
-* **Method**: `audit_summary()` in [store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/store.py).
-* **Command**: `knowledgereduce audit-store --store <path>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Method**: `audit_summary()` in [store.py](knowledge_graph_pkg/store.py).
+* **Command**: `knowledgereduce audit-store --store <path>` in [cli.py](knowledge_graph_pkg/cli.py).
 * **Capabilities**:
   * Counts total drops and facts.
   * Calculates distribution of facts across reliability tiers.
@@ -26,7 +26,7 @@ We implemented a new CLI subcommand and database audit utility:
 ## 🤖 Rule-Based Heuristic Critique Fallback
 
 To support fully offline operations without remote API keys, we built an offline validation layer:
-* **Module**: [critique.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/critique.py).
+* **Module**: [critique.py](knowledge_graph_pkg/critique.py).
 * **Fallback Routing**: If `FactCritic` is instantiated with `--backend none` (or if external client connections fail), it automatically routes validations through rule-based heuristics.
 * **Validation Rules**:
   * **Pronoun Subject/Object**: Automatically flags facts with pronoun subjects or objects (`he`, `she`, `it`, `they`, `this`, `that`, `them`, `these`, `those`) as non-factual (`UNVERIFIED`), preventing bad coreferenced facts from entering training sets.
@@ -38,31 +38,31 @@ To support fully offline operations without remote API keys, we built an offline
 ## 🧪 Test Resilience & pytest conftest Setup
 
 To ensure developers and CI/CD pipelines can run the test suite cleanly on minimal installations (without optional extras like KùzuDB, spaCy, or Matplotlib), we isolated optional imports:
-* **Module**: [conftest.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/conftest.py).
+* **Module**: [conftest.py](tests/conftest.py).
 * **Behavior**: Dynamically registers pytest markers (`require_kuzu`, `require_spacy`, `require_matplotlib`, `require_neo4j`, `require_mlx`, `require_llama_cpp`, `require_ollama`) and checks package availability to skip matching tests gracefully instead of failing during collection.
-* **Explicit Skip Guards**: Added `pytest.importorskip("matplotlib")` to the top of [test_visualization.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/tests/test_visualization.py).
+* **Explicit Skip Guards**: Added `pytest.importorskip("matplotlib")` to the top of [test_visualization.py](tests/test_visualization.py).
 
 ---
 
 ## 📦 Hermes Skill Packaging & Tool Surface
 
 To expose the repository's native capabilities directly as a Hermes/Antigravity coding skill, we hardened the skill configuration and registry:
-* **Canonical Skill Manifest**: [.agents/skills/knowledge-reduce-core/SKILL.md](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills/knowledge-reduce-core/SKILL.md).
+* **Canonical Skill Manifest**: [.agents/skills/knowledge-reduce-core/SKILL.md](.agents/skills/knowledge-reduce-core/SKILL.md).
 * **Enriched Metadata**:
   * Frontmatter categories, environment variables, commands, and platforms.
   * Detailed `## Tool surface` mapping the package's python entrypoints and command-line subcommands.
   * Actionable `## Hermes prompt patterns` with template request/response schemas for distilling, dropping, and auditing facts.
   * Explicit `## Safety/timeout defaults`.
-* **Registry mapping**: Linked in [.agents/skills.json](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/.agents/skills.json).
-* **Bootstrap validation script**: [scripts/smoke_skill.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/scripts/smoke_skill.py) verifying version alignment, importability, store auditing, and critique fallbacks.
+* **Registry mapping**: Linked in [.agents/skills.json](.agents/skills.json).
+* **Bootstrap validation script**: [scripts/smoke_skill.py](scripts/smoke_skill.py) verifying version alignment, importability, store auditing, and critique fallbacks.
 
 ---
 
 ## 🕸️ Active Entity Resolution & Synonym Merging (`resolve-entities`)
 
 We implemented a store-agnostic entity merger:
-* **Module**: [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py).
-* **Command**: `knowledgereduce resolve-entities --graph-db <path> --threshold <0..1>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Module**: [entity_resolution.py](knowledge_graph_pkg/entity_resolution.py).
+* **Command**: `knowledgereduce resolve-entities --graph-db <path> --threshold <0..1>` in [cli.py](knowledge_graph_pkg/cli.py).
 * **Behavior**: Scans all `Fact` nodes to group similar entity references, updates their names, updates statements to propagate the canonical spelling, and collapses redundant duplicate SVO node triplets into single unified nodes.
 
 ---
@@ -70,8 +70,8 @@ We implemented a store-agnostic entity merger:
 ## 🛤️ Subgraph Instruction Compiler (`compile-graph-instructions`)
 
 We built a multi-hop graph walker to generate reasoning instructions from structural topology:
-* **Module**: [graph_compiler.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_compiler.py).
-* **Command**: `knowledgereduce compile-graph-instructions --graph-db <path> -o <jsonl_path>` in [cli.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/cli.py).
+* **Module**: [graph_compiler.py](knowledge_graph_pkg/graph_compiler.py).
+* **Command**: `knowledgereduce compile-graph-instructions --graph-db <path> -o <jsonl_path>` in [cli.py](knowledge_graph_pkg/cli.py).
 * **Behavior**: Traverses RELATED edges connecting facts, synthesizing Alpaca-style instruction targets for connection tracing, chain sequences, and intermediate inference step predictions.
 
 ---
@@ -79,14 +79,14 @@ We built a multi-hop graph walker to generate reasoning instructions from struct
 ## ⚙️ Dynamic Neo4j URI Parsing & Session Routing
 
 We implemented a robust connection string parser to dynamically extract database names:
-* **Module**: [graph_store_factory.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_store_factory.py) & [neo4j_store.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/neo4j_store.py).
+* **Module**: [graph_store_factory.py](knowledge_graph_pkg/graph_store_factory.py) & [neo4j_store.py](knowledge_graph_pkg/neo4j_store.py).
 * **Workspace Isolation**: Workspace names are securely parsed from URI parameters or paths to establish isolated Neo4j database sessions dynamically.
 
 ---
 
 ## ⚡ Real-Time Active Watcher Graph Ingestion (`watch-daemon --graph-db`)
 
-* **Module**: [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py).
+* **Module**: [watcher.py](knowledge_graph_pkg/watcher.py).
 * **Behavior**: Triggers automatic graph ingestion, concept linking, entity merging, and conflict resolution in real-time when new documents are dropped into the watched directory.
 
 ---
@@ -101,7 +101,7 @@ We implemented a robust connection string parser to dynamically extract database
 ## 🔗 Exposing Graph-RAG Retrieval via MCP Tool Server (`graph_rag_retrieve`)
 
 * **Unverified Fact Filtering in Graph-RAG**: Integrated a new `exclude_unverified` parameter (default: True) into the hybrid vector + PageRank RAG retriever. This filters out `UNVERIFIED` (demoted) facts from both seed retrieval and path walks to prevent hallucinated/contradictory facts from polluting generative LLM prompts.
-* **LLM-Callable Tool Facade**: Exposed `graph_rag_retrieve` directly to the `GraphTools` facade and its schema registry in [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py). Any agent connected via the MCP protocol can now trigger full semantic and multi-hop path retrieval using a simple function-call interface.
+* **LLM-Callable Tool Facade**: Exposed `graph_rag_retrieve` directly to the `GraphTools` facade and its schema registry in [graph_tool.py](knowledge_graph_pkg/graph_tool.py). Any agent connected via the MCP protocol can now trigger full semantic and multi-hop path retrieval using a simple function-call interface.
 
 ---
 
@@ -152,11 +152,11 @@ We implemented a robust connection string parser to dynamically extract database
 
 ## 🛠️ Phase II Hardening & Optimizations
 
-* **SQLite WAL & Concurrency Resilience**: Connected with WAL journal mode and busy timeouts in [watcher.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/watcher.py), preventing SQLite db locks.
-* **Cryptographic JWT Signature Verification**: Added `PyJWT` validations for signatures and expirations (`exp`) in [mcp_server.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/mcp_server.py).
-* **Incremental Overlapping Prefix Blocking Entity Resolution**: Optimized [entity_resolution.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/entity_resolution.py) Jaccard clustering using overlapping prefix blocking and scope limits.
-* **Configurable Ontology Heuristics**: Enabled dynamic taxonomy predicate and categorization configurations in [ontology.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/ontology.py) with parameterized queries.
-* **Conflict-Aware RAG Path Pruning**: Prunes multi-hop paths traversing edges involved in active conflicts in [rag.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/rag.py).
+* **SQLite WAL & Concurrency Resilience**: Connected with WAL journal mode and busy timeouts in [watcher.py](knowledge_graph_pkg/watcher.py), preventing SQLite db locks.
+* **Cryptographic JWT Signature Verification**: Added `PyJWT` validations for signatures and expirations (`exp`) in [mcp_server.py](knowledge_graph_pkg/mcp_server.py).
+* **Incremental Overlapping Prefix Blocking Entity Resolution**: Optimized [entity_resolution.py](knowledge_graph_pkg/entity_resolution.py) Jaccard clustering using overlapping prefix blocking and scope limits.
+* **Configurable Ontology Heuristics**: Enabled dynamic taxonomy predicate and categorization configurations in [ontology.py](knowledge_graph_pkg/ontology.py) with parameterized queries.
+* **Conflict-Aware RAG Path Pruning**: Prunes multi-hop paths traversing edges involved in active conflicts in [rag.py](knowledge_graph_pkg/rag.py).
 
 ---
 
@@ -169,7 +169,7 @@ We implemented a robust connection string parser to dynamically extract database
 
 ## 🔌 Exposing Distill Ontology via MCP Server (`graph_distill_ontology`)
 
-* **Tool Facade**: Registered `graph_distill_ontology` as an LLM-callable function in [graph_tool.py](file:///Users/nelslindahl/.gemini/antigravity/scratch/knowledgereduce/knowledge_graph_pkg/graph_tool.py).
+* **Tool Facade**: Registered `graph_distill_ontology` as an LLM-callable function in [graph_tool.py](knowledge_graph_pkg/graph_tool.py).
 * **Behavior**: Allows connected AI agents to query the high-level class taxonomy, semantic categories, and relation schemas dynamically.
 
 ---
