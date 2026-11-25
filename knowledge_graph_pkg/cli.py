@@ -1474,15 +1474,10 @@ def _cmd_distill_ontology(args) -> int:
     kstore = get_graph_store(args.graph_db)
     try:
         distiller = OntologyDistiller(kstore)
-        taxonomy = distiller.distill_taxonomy()
-        semantic_types = distiller.infer_semantic_types()
-        schema = distiller.infer_relation_schema()
-        
-        summary = {
-            "taxonomy": taxonomy,
-            "semantic_types": semantic_types,
-            "relation_schema": schema
-        }
+        summary = distiller.distill_all()
+        taxonomy = summary["taxonomy"]
+        semantic_types = summary["semantic_types"]
+        schema = summary["relation_schema"]
         
         with open(args.output, "w", encoding="utf-8") as fh:
             json.dump(summary, fh, indent=2)

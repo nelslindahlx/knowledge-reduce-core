@@ -1,27 +1,30 @@
-# Latest Walkthrough: Phase 1 Security, Store Parity, MCP & Watcher Hardening
+# Latest Walkthrough: Phase 2 Entity Resolution, Graph-RAG, Compiler & Ontology Distillation
 
-Summary of Phase 1 remediation from `docs/plans/master_plan_v0_4_0.md` executed on branch `fix/security-mcp-stores-watcher`.
+Summary of Phase 2 remediation from `docs/plans/master_plan_v0_4_0.md` executed on branch `fix/graph-rag-er-ontology`.
 
 ## Changes Applied
-- **Graph Store Parity & Reasoning (`graph_store_base.py`, `kuzu_store.py`, `neo4j_store.py`, `graph_store_factory.py`)**:
-  - Added shared `_s`, `_block_id`, `RELIABILITY_RANK`, and `normalize_fact_record` supporting canonical (`fact_statement`, `reliability_rating`, `cross_model_agreement`, `quality_score`, list `source_models`) and legacy schemas.
-  - Switched `Neo4jStore` to idempotent `MERGE ... SET`, required explicit password / `NEO4J_PASSWORD`, added `Neo4jStore.with_database()`, added `bolt+s://` / `bolt+ssc://`, and stripped credentials from `clean_uri`.
-  - Fixed `BaseGraphStore` Cypher & reasoning logic (`find_by_reliability` clamp, `auto_link_relations` empty guards + `ON CREATE SET`, `find_contradictions` core-predicate overlap, `find_transitive_inferences` case-insensitivity + `UNVERIFIED`/self-loop filtering, `validate_and_reconcile` tier+quality ranking).
-- **Cypher Read-Only Guard (`graph_tool.py`)**:
-  - Stripped quoted literals before scanning expanded `_FORBIDDEN` keywords (`CALL`, `FOREACH`, `EXPORT`, `IMPORT`, `ATTACH`, etc.), comments (`//`, `/*`), and multi-statement semicolons; wired `default_limit`, Python slice capping, and cached `GraphRAGRetriever`.
-- **MCP Gateway & Dashboard (`mcp_server.py`)**:
-  - Validated `x-workspace-id` via allowlist regex and `os.path.commonpath` against `KuzuStore.path`, added LRU workspace eviction with `.close()`, removed raw secret bearer bypass, enforced JWT auth on `/api/notify_update`, `WS /ws`, and stdlib `make_handler`, partitioned WebSockets by workspace, restricted CORS defaults, eliminated double `retrieve()` in `/api/rag_retrieve`, and fixed `DASHBOARD_HTML` XSS (`escapeHtml` + `data-block-id`), `edgesDataset`/`token` `ReferenceError`s, and WebGL renderer reuse.
-- **Watcher Pipeline (`factory.py`, `watcher.py`)**:
-  - Added `"fact_records"` to `batch_drop`, normalized `reliability` case-insensitively, preserved Neo4j URIs in `WatcherDaemon`, added `on_moved` + lock synchronization, sampled `mtime` after write-settle wait, executed graph ingestion/resolution/linking/validation before marking `PROCESSED`, and wrote `ontology_summary.json` atomically.
-- **Test Isolation & Real Integration Coverage**:
-  - Eliminated repo-root CWD database/file creation and module-level `sys.modules` pollution across `tests/test_watcher.py`, `tests/test_neo4j_store.py`, `tests/test_mcp_server.py`, `tests/test_graph_tool.py`, and `tests/test_reasoning.py`, and added a real end-to-end `WatcherDaemon` -> `KuzuStore` -> `OntologyDistiller` integration test.
+- **Graph Store Edge Counter (`graph_store_base.py`)**:
+  - Added `BaseGraphStore.edge_count()` returning the count of `RELATED` edges so caching layers can detect relationship mutations even when node counts remain constant.
+- **Boundary-Aware, Edge-Preserving Entity Resolution (`entity_resolution.py`)**:
+  - Replaced arbitrary substring merging (`s1_clean in s2_clean`) with exact normalized matching, acronym/parenthetical matching (`"ATP"` <-> `"Adenosine Triphosphate (ATP)"`), initialism matching (`"LLM"` <-> `"Large Language Model"`, `"USA"` <-> `"United States of America"`), and long chemical-prefix normalization (`"Glucose"` <-> `"D-Glucose (Sugar)"`), preventing false merges such as `"AI"` -> `"Brain Activation"` or `"Fe"` -> `"Infection"`.
+  - Replaced destructive full-graph `DETACH DELETE` with change-only updates: writes merged nodes first, remaps affected `RELATED` edges via `MERGE ... ON CREATE SET`, and deletes only obsolete `block_id`s while keeping untouched subgraphs and edges intact.
+  - Ranked duplicate collapse candidates by `(RELIABILITY_RANK, agreement, quality)`, merged deduplicated `source_models`, stored `int` quality for `INT64` schema parity, rewrote statements on word boundaries (preserving `"ATPase"`), and shared `_block_id` / `_s`.
+- **Contradiction-Aware Graph-RAG (`rag.py`)**:
+  - Updated conflict pruning to ignore resolved `UNVERIFIED` rows and require `_core_predicates_match()` on real store records so valid multi-predicate facts are preserved.
+  - Pushed `exclude_unverified` filtering into `retrieve_seeds()` before `limit`, added query/statement vector caching (`_embedding_cache`, cached `VectorIndex`, `invalidate_cache()`), invalidated PageRank via `(store.count(), store.edge_count())`, and added pure-Python `_compute_pagerank_power()` fallback when `scipy` is not installed.
+  - Added token-boundary matching for short 2–3 char terms (`"AI"`, `"Fe"`), `None`-safe field handling, `format_facts()`, and `exclude_unverified` forwarding in `format_context()`.
+- **Graph Instruction Compiler (`graph_compiler.py`)**:
+  - Added `auto_link` control and `LIMIT` pushdown, excluded `A -> B -> A` self-cycles, defaulted missing reliability to `"UNVERIFIED"`, required `_core_predicates_match()` for contradiction instructions with case-insensitive `RELIABILITY_RANK`, and wrote JSONL outputs atomically.
+- **Single-Pass Case-Insensitive Ontology (`ontology.py` & callers)**:
+  - Normalized predicates case-insensitively, stripped `None` values via `_s`, checked predicate rules before `-ing`/`-ation`/`-sis` suffixes, and added `distill_all()` + optional pre-fetched `facts` wired into `graph_tool.py`, `watcher.py`, `mcp_server.py`, and `cli.py`.
+- **Expanded Tests (`tests/test_entity_resolution.py`, `tests/test_rag.py`, `tests/test_graph_compiler.py`, `tests/test_ontology.py`)**:
+  - Replaced module-level `importorskip("kuzu")` in `test_entity_resolution.py`, `test_graph_compiler.py`, and `test_ontology.py` with pure-Python test classes plus `@pytest.mark.skipif` Kùzu integration classes, and added Kùzu end-to-end Graph-RAG integration tests.
 
 ## Verification Results
 
 | Check | Result | Timing |
 |---|---|---|
-| `make local-ci` (`canary`, `skill`, `lint`, `test`) | `351 passed, 7 skipped`, `69.80%` coverage (`>= 58%` gate) | `11.00s` (`pytest`: `7.58s`) |
-| `make smoke-pr` (`canary`, `skill`, `lint`, Stage 1 & 2) | Stage 1: `68 passed`; Stage 2: `71 passed, 1 skipped` | `5.14s` |
+| `make local-ci` (`canary`, `skill`, `lint`, `test`) | `370 passed, 7 skipped`, `70.65%` coverage (`>= 58%` gate) | `5.32s` (`pytest`) |
+| `make smoke-pr` (`canary`, `skill`, `lint`, Stage 1 & 2) | Stage 1 & Stage 2 passed cleanly (`1` optional skip) | Passed |
 | `make canary` (`-W error::Warning` import + `tests/meta/`) | `10 passed`, zero import warnings | `< 1s` |
 | `make lint` (`ruff check` + strict governance check/format) | `All checks passed!`, `4 files already formatted` | `< 1s` |
-| `git ls-files "*.pyc"` & local-path grep | Empty / zero matches | `< 1s` |

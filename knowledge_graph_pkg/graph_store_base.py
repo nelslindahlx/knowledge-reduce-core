@@ -150,6 +150,11 @@ class BaseGraphStore:
     def count(self) -> int:
         raise NotImplementedError
 
+    def edge_count(self) -> int:
+        """Return the total number of RELATED edges in the graph store."""
+        res = self.query("MATCH ()-[r:RELATED]->() RETURN count(r) AS n")
+        return int(res[0]["n"]) if res else 0
+
     def close(self) -> None:
         raise NotImplementedError
 

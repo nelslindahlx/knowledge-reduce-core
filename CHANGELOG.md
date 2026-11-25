@@ -5,6 +5,11 @@ All notable changes to KnowledgeReduce Core are documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Phase 2 Entity Resolution, Graph-RAG, Graph Compiler & Ontology Distillation**:
+  - Added `BaseGraphStore.edge_count()` (`knowledge_graph_pkg/graph_store_base.py`) so downstream caches track `RELATED` edge mutations cleanly.
+  - Added `GraphRAGRetriever.invalidate_cache()`, `GraphRAGRetriever.format_facts()`, and pure-Python power-iteration `_compute_pagerank_power()` fallback in `knowledge_graph_pkg/rag.py` so PageRank works accurately even without `scipy`.
+  - Added `OntologyDistiller.distill_all()` in `knowledge_graph_pkg/ontology.py` and wired single-pass calls in `GraphTools.graph_distill_ontology()`, `WatcherDaemon`, `mcp_server.py`, and `cli.py`.
+  - Added pure-Python unit tests and real `KuzuStore` integration tests across `tests/test_entity_resolution.py`, `tests/test_rag.py`, `tests/test_graph_compiler.py`, and `tests/test_ontology.py`.
 - **Phase 1 Security, Graph Store Parity, MCP Dashboard & Watcher Hardening**:
   - Added shared `normalize_fact_record`, `_block_id`, `_s`, and `RELIABILITY_RANK` in `knowledge_graph_pkg/graph_store_base.py`, unifying canonical/legacy schema mapping across `KuzuStore` and `Neo4jStore`.
   - Added `Neo4jStore.with_database()`, explicit `NEO4J_PASSWORD`/argument validation, `bolt+s://`/`bolt+ssc://` routing, and credential-stripped URI construction in `knowledge_graph_pkg/graph_store_factory.py`.
@@ -23,6 +28,10 @@ All notable changes to KnowledgeReduce Core are documented in this file.
 - Scrubbed machine-local filesystem paths from `MODELREDUCE_MASTER_PLAN.md`, `MODELREDUCE_SESSIONS.md`, `deploy/com.knowledgereduce.watcher.plist`, `deploy/knowledgereduce-watcher.service`, `improvement_master_plan_phase_2.md`, `task.md`, and `walkthrough.md`.
 
 ### Fixed
+- Fixed `entity_resolution.py` false-positive substring merging (`"AI"` vs `"Brain Activation"`), non-atomic full-DB `DETACH DELETE` wiping `RELATED` edges, alphabetical reliability sorting (`"UNVERIFIED"` outranking `"VERIFIED"`), dropped `source_models`, float quality writes to `INT64`, and non-boundary statement rewrites.
+- Fixed `rag.py` over-broad conflict pruning on multi-predicate pairs, post-`top_k` `UNVERIFIED` filtering, missing vector/embedding cache, edge-blind PageRank cache, pure-Python PageRank fallback when `scipy` is absent, short-term (`>= 2`) keyword boundary matching, `None` statement/entity safety, and `exclude_unverified` forwarding in `format_context()`.
+- Fixed `graph_compiler.py` false contradiction instructions on non-conflicting predicates, `A -> B -> A` self-cycles, `VERIFIED` default on missing reliability, case-sensitive reliability ranking, `auto_link` control, and atomic JSONL saves.
+- Fixed `ontology.py` case-sensitive predicate checks, `str(None) -> "None"` coercion, suffix-before-predicate misclassifications (`"Building"`, `"Station"`), and redundant per-call full-graph queries.
 - Fixed `mcp_server.py` security and runtime issues: removed raw secret bearer bypass in `verify_token`, added JWT verification on `/api/notify_update`, `WS /ws`, and stdlib `make_handler`, partitioned WebSockets by workspace, restricted `x-workspace-id` via allowlist + path containment (`KuzuStore.path`), added LRU workspace store eviction, restricted CORS defaults, eliminated double `retrieve()` in `/api/rag_retrieve`, and fixed `DASHBOARD_HTML` XSS (`escapeHtml` + `data-block-id`), `edgesDataset` / `token` `ReferenceError`s, and WebGL renderer reuse.
 - Fixed dead `WatcherDaemon` graph pipeline by adding `"fact_records"` to `factory.batch_drop`, preserving Neo4j URIs, adding `on_moved`, syncing graph operations before marking `PROCESSED`, and writing `ontology_summary.json` atomically.
 - Fixed `BaseGraphStore.auto_link_relations` (ignore empty subjects/objects, preserve existing weights), `find_contradictions` (require core predicate overlap), `find_transitive_inferences` (case-insensitive, exclude `UNVERIFIED` and self-loops), and `validate_and_reconcile` (rank by reliability tier + quality).
