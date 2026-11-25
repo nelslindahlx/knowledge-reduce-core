@@ -15,7 +15,9 @@ These are pure-Python and operate over a :class:`KnowledgeStore`.
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List
+import json
+import os
+from typing import Any, Dict, List, Optional
 
 # Ordered reliability ladder for promotion.
 _RELIABILITY_ORDER = ["UNVERIFIED", "POSSIBLY_TRUE", "LIKELY_TRUE", "VERIFIED"]
@@ -23,6 +25,25 @@ _RELIABILITY_ORDER = ["UNVERIFIED", "POSSIBLY_TRUE", "LIKELY_TRUE", "VERIFIED"]
 
 def _norm(s: str) -> str:
     return " ".join(str(s or "").lower().split())
+
+
+def _normalize_reliability(val: Any) -> str:
+    """Normalize Enum, string, or missing reliability into a canonical rung."""
+    if hasattr(val, "name"):
+        val = val.name
+    candidate = str(val or "").strip().upper()
+    if candidate in _RELIABILITY_ORDER:
+        return candidate
+    return "UNVERIFIED"
+
+
+def _is_within(base: str, target: str) -> bool:
+    base_abs = os.path.abspath(base)
+    target_abs = os.path.abspath(target)
+    try:
+        return os.path.commonpath([base_abs, target_abs]) == base_abs
+    except ValueError:
+        return False
 
 
 def promote_reliability(store, min_sources: int = 2) -> List[Dict[str, Any]]:
@@ -37,13 +58,18 @@ def promote_reliability(store, min_sources: int = 2) -> List[Dict[str, Any]]:
         lambda: {"sources": set(), "max_rel": "UNVERIFIED", "statement": ""}
     )
     for fact in store.iter_facts():
-        key = _norm(fact.get("fact_statement"))
+        stmt = fact.get("fact_statement") or fact.get("statement")
+        key = _norm(stmt)
         if not key:
             continue
         rec = by_statement[key]
-        rec["statement"] = fact.get("fact_statement")
-        rec["sources"].add(fact.get("_source"))
-        rel = fact.get("reliability_rating", "UNVERIFIED")
+        rec["statement"] = stmt
+        src = fact.get("_source")
+        if src is not None:
+            rec["sources"].add(src)
+        rel = _normalize_reliability(
+            fact.get("reliability_rating") or fact.get("reliability")
+        )
         if _RELIABILITY_ORDER.index(rel) > _RELIABILITY_ORDER.index(rec["max_rel"]):
             rec["max_rel"] = rel
 
@@ -70,6 +96,7 @@ def find_contradictions(store) -> List[Dict[str, Any]]:
     and which sources asserted each.
     """
     by_pair: Dict[tuple, Dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    pair_display: Dict[tuple, tuple] = {}
     obj_display: Dict[str, str] = {}
     for fact in store.iter_facts():
         subj = _norm(fact.get("subject"))
@@ -77,31 +104,46 @@ def find_contradictions(store) -> List[Dict[str, Any]]:
         obj = fact.get("object")
         if not subj or not pred or obj is None:
             continue
+        pair_key = (subj, pred)
+        if pair_key not in pair_display:
+            pair_display[pair_key] = (
+                str(fact.get("subject") or "").strip(),
+                str(fact.get("predicate") or "").strip(),
+            )
         obj_key = _norm(obj)
-        obj_display[obj_key] = obj  # keep original-case display form
-        by_pair[(fact.get("subject"), fact.get("predicate"))][obj_key].add(
-            fact.get("_source")
-        )
+        obj_display[obj_key] = str(obj)  # keep original-case display form
+        src = fact.get("_source")
+        if src is not None:
+            by_pair[pair_key][obj_key].add(src)
+        else:
+            # Track distinct object occurrence even when _source is absent.
+            _ = by_pair[pair_key][obj_key]
 
     conflicts = []
-    for (subj, pred), objmap in by_pair.items():
+    for pair_key, objmap in by_pair.items():
         if len(objmap) > 1:
+            subj_disp, pred_disp = pair_display[pair_key]
             conflicts.append({
-                "subject": subj,
-                "predicate": pred,
+                "subject": subj_disp,
+                "predicate": pred_disp,
                 "objects": sorted(obj_display[k] for k in objmap),
-                "sources": {obj_display[o]: sorted(s) for o, s in objmap.items()},
+                "sources": {
+                    obj_display[o]: sorted(str(x) for x in s if x is not None)
+                    for o, s in objmap.items()
+                },
             })
     return conflicts
 
 
 def reextract_store(store, engine: str = "svo", resolve_coref: bool = True,
-                    filter_name: str = "standard") -> Dict[str, Any]:
+                    filter_name: str = "standard",
+                    reliability: Optional[Any] = None) -> Dict[str, Any]:
     """Re-extract every stored source that carries raw text, with ``engine``.
 
     Writes a NEW drop version per re-extracted source (drops are immutable;
-    re-extraction never edits in place). Drops lacking ``source_text`` are
-    skipped. Returns counts of reextracted / skipped sources.
+    re-extraction never edits in place). Drops lacking ``source_text`` or
+    referencing missing shards are skipped; previously re-extracted derived
+    drops are ignored so repeat runs do not multiply drops exponentially.
     """
     # Lazy imports to avoid a heavy import chain at module load.
     from .core import KnowledgeGraph, ReliabilityRating
@@ -109,6 +151,8 @@ def reextract_store(store, engine: str = "svo", resolve_coref: bool = True,
     from .distillation import KnowledgeDistiller
     from .quality import FactQualityFilter
     from .store import Drop, content_hash
+
+    rel_enum = reliability if reliability is not None else ReliabilityRating.LIKELY_TRUE
 
     extractor = None
     if engine != "svo":
@@ -121,31 +165,59 @@ def reextract_store(store, engine: str = "svo", resolve_coref: bool = True,
     )
 
     reextracted = skipped = 0
-    # Snapshot current drops (we'll be appending new ones).
-    for entry in list(store.list_drops()):
-        # Read the shard header to recover source_text.
-        import os, json
-        shard = os.path.join(store.root, entry["shard"])
-        source_text = None
+    existing_drops = list(store.list_drops())
+    existing_ids = {str(d.get("drop_id") or "") for d in existing_drops}
+
+    for entry in existing_drops:
+        drop_id = str(entry.get("drop_id") or "")
+        if "-reextract-" in drop_id:
+            continue
+
+        rel_shard = entry.get("shard") or ""
+        shard = os.path.join(store.root, rel_shard)
+        if not rel_shard or not _is_within(store.root, shard) or not os.path.isfile(shard):
+            skipped += 1
+            continue
+
         with open(shard, "r", encoding="utf-8") as fh:
-            header = json.loads(fh.readline())
-            source_text = header.get("source_text")
+            first_line = fh.readline().strip()
+        if not first_line:
+            skipped += 1
+            continue
+        header = json.loads(first_line)
+        meta = header.get("meta") or {}
+        if isinstance(meta, dict) and meta.get("reextracted_from"):
+            continue
+        source_text = header.get("source_text")
         if not source_text:
             skipped += 1
             continue
 
         kg = KnowledgeGraph()
         skg = SemanticKnowledgeGraph(kg)
-        skg.create_facts_from_text(source_text, source_id=entry["source"],
-                                   reliability=ReliabilityRating.LIKELY_TRUE,
-                                   resolve_coref=resolve_coref, extractor=extractor)
-        distiller = KnowledgeDistiller(kg, min_reliability=ReliabilityRating.LIKELY_TRUE,
-                                       dedup_threshold=0.9, quality_filter=qf)
+        skg.create_facts_from_text(
+            source_text,
+            source_id=entry["source"],
+            reliability=rel_enum,
+            resolve_coref=resolve_coref,
+            extractor=extractor,
+        )
+        distiller = KnowledgeDistiller(
+            kg, min_reliability=rel_enum, dedup_threshold=0.9, quality_filter=qf
+        )
         facts = distiller.select_facts()
+
+        base_id = f"{drop_id}-reextract-{engine}"
+        new_drop_id = base_id
+        version = 2
+        while new_drop_id in existing_ids:
+            new_drop_id = f"{base_id}-v{version}"
+            version += 1
+        existing_ids.add(new_drop_id)
 
         src_hash = entry.get("source_hash") or content_hash(source_text)
         new_drop = Drop(
-            drop_id=f"{entry['drop_id']}-reextract-{engine}",
+            drop_id=new_drop_id,
             source=entry["source"],
             source_hash=src_hash,
             facts=facts,
@@ -153,7 +225,7 @@ def reextract_store(store, engine: str = "svo", resolve_coref: bool = True,
             filter_name=filter_name,
             coref=resolve_coref,
             source_text=source_text,
-            meta={"reextracted_from": entry["drop_id"]},
+            meta={"reextracted_from": drop_id},
         )
         store.write_drop(new_drop)
         reextracted += 1

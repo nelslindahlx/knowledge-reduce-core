@@ -58,9 +58,9 @@ class QAGenerator:
         Returns:
             ``(question, answer)`` where the answer is the relation object.
         """
-        subject = str(relation.get('subject', '')).strip()
-        object_ = str(relation.get('object', '')).strip()
-        predicate = relation.get('predicate', '')
+        subject = str(relation.get('subject') or '').strip()
+        object_ = str(relation.get('object') or '').strip()
+        predicate = str(relation.get('predicate') or '').strip()
 
         template = self._QUESTION_TEMPLATES.get(predicate)
         if template is None:

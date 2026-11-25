@@ -33,6 +33,17 @@ _PERSON_RE = re.compile(r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)\b')
 # Generic proper-noun phrase: optional leading "The" + capitalized word(s).
 _ENTITY_RE = re.compile(r'\b((?:The\s)?[A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b')
 
+# Single-word sentence openers and pronouns that must never become tracked entities.
+_NON_ENTITY_OPENERS = {
+    "He", "She", "They", "It", "His", "Her", "Their", "Its",
+    "The", "This", "That", "These", "Those", "There", "Here",
+    "However", "Therefore", "Also", "Moreover", "Furthermore", "Meanwhile",
+    "Although", "Because", "Since", "While", "When", "Where",
+    "After", "Before", "During", "Until", "Unless", "Instead",
+    "Still", "Yet", "But", "And", "Or", "So",
+    "In", "On", "At", "By", "For", "From", "With", "To", "Of", "As", "If",
+}
+
 
 def _sentences_with_spans(text: str):
     """Yield ``(chunk, leading_ws_len)`` chunks that reconstruct ``text``.
@@ -52,7 +63,11 @@ def _extract_people(text: str) -> List[str]:
 
 
 def _extract_entities(text: str) -> List[str]:
-    return [m.group(1) for m in _ENTITY_RE.finditer(text)]
+    return [
+        m.group(1)
+        for m in _ENTITY_RE.finditer(text)
+        if m.group(1) not in _NON_ENTITY_OPENERS
+    ]
 
 
 def resolve_coreferences(text: str) -> str:

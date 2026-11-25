@@ -31,7 +31,7 @@ class SpacyExtractor:
                 "pip install knowledgereduce[nlp]"
             ) from exc
         try:
-            self._nlp = spacy.load(model, disable=["ner", "lemmatizer"])
+            self._nlp = spacy.load(model, disable=["ner"])
         except OSError as exc:  # pragma: no cover - environment dependent
             raise ImportError(
                 f"spaCy model '{model}' not found. Install it with: "
@@ -80,7 +80,11 @@ class SpacyExtractor:
                 if not objects:
                     continue
 
-                predicate = token.lemma_.lower() if token.pos_ == "VERB" else token.text.lower()
+                predicate = (
+                    (token.lemma_ or token.text).lower().strip()
+                    if token.pos_ == "VERB"
+                    else token.text.lower().strip()
+                )
 
                 for subj in subjects:
                     subj_text = self._subtree_minimal(subj)

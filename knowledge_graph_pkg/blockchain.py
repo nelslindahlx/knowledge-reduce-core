@@ -6,37 +6,57 @@ blockchain-based verification, consensus mechanisms, and immutable fact history.
 """
 
 import hashlib
-import time
 import json
-from typing import Dict, List, Any, Union, Optional, Tuple, Set, Callable
+import os
 from datetime import datetime
+from typing import Dict, List, Any, Optional
 from .core import KnowledgeGraph, ReliabilityRating
+
+
+def _normalize_tags_str(val: Any) -> str:
+    if isinstance(val, (list, tuple)):
+        return ", ".join(str(x).strip() for x in val if str(x).strip())
+    if isinstance(val, str):
+        return ", ".join(x.strip() for x in val.split(",") if x.strip())
+    return str(val or "")
+
+
+def _json_safe(val: Any) -> Any:
+    if isinstance(val, ReliabilityRating):
+        return val.name
+    if isinstance(val, datetime):
+        return val.isoformat()
+    if isinstance(val, dict):
+        return {k: _json_safe(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_json_safe(v) for v in val]
+    return val
+
+
+def _parse_reliability(val: Any) -> ReliabilityRating:
+    if isinstance(val, ReliabilityRating):
+        return val
+    if isinstance(val, str):
+        member = ReliabilityRating.__members__.get(val.strip().upper())
+        if member is not None:
+            return member
+    raise ValueError(f"Invalid reliability rating: {val!r}")
+
 
 class BlockchainKnowledgeGraph:
     """
     Class for blockchain-based distributed knowledge graphs.
-    
-    This class provides methods for creating distributed knowledge graphs
-    with blockchain-based verification and immutable history.
-    
-    Attributes:
-        kg: The knowledge graph to enhance with blockchain capabilities
-        chain: The blockchain containing fact history
-        pending_transactions: Transactions waiting to be added to the blockchain
     """
     
-    def __init__(self, knowledge_graph: KnowledgeGraph):
+    def __init__(self, knowledge_graph: KnowledgeGraph, difficulty: int = 2):
         """
         Initialize a BlockchainKnowledgeGraph with a knowledge graph.
-        
-        Args:
-            knowledge_graph: KnowledgeGraph instance to enhance
         """
         self.kg = knowledge_graph
+        self.difficulty = max(1, int(difficulty))
         self.chain = []
         self.pending_transactions = []
         
-        # Create genesis block
         self._create_genesis_block()
         
     def add_fact(self, 
@@ -49,113 +69,76 @@ class BlockchainKnowledgeGraph:
                 **kwargs) -> str:
         """
         Add a new fact with blockchain verification.
-        
-        Args:
-            fact_id: Unique identifier for the fact
-            fact_statement: The actual fact statement
-            category: Category of the fact
-            tags: List of tags associated with the fact
-            reliability_rating: ReliabilityRating enum value
-            source_id: Identifier for the source
-            **kwargs: Additional fact attributes
-            
-        Returns:
-            Transaction hash
         """
-        # Create transaction data
+        rel_enum = _parse_reliability(reliability_rating)
+        tags_list = list(tags) if isinstance(tags, (list, tuple)) else [
+            t.strip() for t in str(tags).split(",") if t.strip()
+        ]
+        extra = dict(kwargs)
+        now = datetime.now().isoformat()
+
+        kg_fact_data = {
+            'fact_statement': fact_statement,
+            'category': category,
+            'tags': tags_list,
+            'reliability_rating': rel_enum,
+            'source_id': source_id,
+            **extra,
+        }
+        kg_fact_data.setdefault('date_recorded', now)
+        kg_fact_data.setdefault('last_updated', now)
+        kg_fact_data.setdefault('related_facts', [])
+        kg_fact_data.setdefault('contextual_notes', "")
+        kg_fact_data.setdefault('access_level', "public")
+        kg_fact_data.setdefault('usage_count', 0)
+        kg_fact_data.setdefault('publication_date', now)
+        for field in ('source_title', 'author_creator', 'url_reference'):
+            kg_fact_data.setdefault(field, "")
+
+        # Validate and apply to KG BEFORE recording transaction so failed adds never corrupt ledger.
+        self.kg.add_fact(fact_id=fact_id, **kg_fact_data)
+
+        tx_payload = _json_safe({
+            'fact_statement': fact_statement,
+            'category': category,
+            'tags': tags_list,
+            'reliability_rating': rel_enum.name,
+            'source_id': source_id,
+            **extra,
+        })
         transaction = {
             'type': 'add_fact',
             'timestamp': datetime.now().isoformat(),
             'fact_id': fact_id,
-            'fact_data': {
-                'fact_statement': fact_statement,
-                'category': category,
-                'tags': tags,
-                'reliability_rating': reliability_rating.name,
-                'source_id': source_id,
-                **kwargs
-            }
+            'fact_data': tx_payload,
         }
-        
-        # Add transaction to pending transactions
-        tx_hash = self._add_transaction(transaction)
-        
-        # Add the fact to the knowledge graph
-        fact_data = transaction['fact_data'].copy()
-        fact_data['reliability_rating'] = reliability_rating
-        
-        # Set defaults for required fields
-        now = datetime.now()
-        if 'date_recorded' not in fact_data:
-            fact_data['date_recorded'] = now
-        if 'last_updated' not in fact_data:
-            fact_data['last_updated'] = now
-        if 'related_facts' not in fact_data:
-            fact_data['related_facts'] = []
-        if 'contextual_notes' not in fact_data:
-            fact_data['contextual_notes'] = ""
-        if 'access_level' not in fact_data:
-            fact_data['access_level'] = "public"
-        if 'usage_count' not in fact_data:
-            fact_data['usage_count'] = 0
-            
-        # Add required fields that might be missing
-        for field in ['source_title', 'author_creator', 'publication_date', 'url_reference']:
-            if field not in fact_data:
-                fact_data[field] = ""
-                
-        try:
-            self.kg.add_fact(fact_id=fact_id, **fact_data)
-        except Exception as e:
-            print(f"Error adding fact to knowledge graph: {e}")
-            
-        return tx_hash
+        return self._add_transaction(transaction)
         
     def update_fact(self, fact_id: str, **updates) -> str:
         """
         Update a fact with blockchain verification.
-        
-        Args:
-            fact_id: ID of the fact to update
-            **updates: Attributes to update
-            
-        Returns:
-            Transaction hash
         """
-        # Create transaction data
+        kg_updates = dict(updates)
+        if 'reliability_rating' in kg_updates:
+            kg_updates['reliability_rating'] = _parse_reliability(
+                kg_updates['reliability_rating']
+            )
+
+        # Apply to KG first so invalid updates fail cleanly before writing ledger.
+        self.kg.update_fact(fact_id, **kg_updates)
+
         transaction = {
             'type': 'update_fact',
             'timestamp': datetime.now().isoformat(),
             'fact_id': fact_id,
-            'updates': updates
+            'updates': _json_safe(updates),
         }
-        
-        # Add transaction to pending transactions
-        tx_hash = self._add_transaction(transaction)
-        
-        # Update the fact in the knowledge graph
-        try:
-            # Convert reliability_rating from string to enum if present
-            if 'reliability_rating' in updates and isinstance(updates['reliability_rating'], str):
-                updates['reliability_rating'] = getattr(ReliabilityRating, updates['reliability_rating'])
-                
-            self.kg.update_fact(fact_id, **updates)
-        except Exception as e:
-            print(f"Error updating fact in knowledge graph: {e}")
-            
-        return tx_hash
+        return self._add_transaction(transaction)
         
     def verify_fact(self, fact_id: str) -> Dict[str, Any]:
         """
         Verify a fact using the blockchain.
-        
-        Args:
-            fact_id: ID of the fact to verify
-            
-        Returns:
-            Verification result
         """
-        # Get the fact from the knowledge graph
         try:
             fact = self.kg.get_fact(fact_id)
         except Exception as e:
@@ -164,7 +147,6 @@ class BlockchainKnowledgeGraph:
                 'error': f"Fact not found: {e}"
             }
             
-        # Find all transactions related to this fact
         transactions = self._get_fact_transactions(fact_id)
         
         if not transactions:
@@ -173,18 +155,29 @@ class BlockchainKnowledgeGraph:
                 'error': "No blockchain record found for this fact"
             }
             
-        # Verify the current state matches the blockchain history
         expected_state = self._compute_expected_state(fact_id, transactions)
         
-        # Compare with actual state
         matches = True
         mismatches = []
         
         for key, value in expected_state.items():
             if key in fact:
-                if isinstance(fact[key], ReliabilityRating) and isinstance(value, str):
-                    # Compare enum with string
-                    if fact[key].name != value:
+                if key == 'tags':
+                    if _normalize_tags_str(fact[key]) != _normalize_tags_str(value):
+                        matches = False
+                        mismatches.append(key)
+                elif key == 'reliability_rating':
+                    actual_name = (
+                        fact[key].name
+                        if isinstance(fact[key], ReliabilityRating)
+                        else str(fact[key]).strip().upper()
+                    )
+                    expected_name = (
+                        value.name
+                        if isinstance(value, ReliabilityRating)
+                        else str(value).strip().upper()
+                    )
+                    if actual_name != expected_name:
                         matches = False
                         mismatches.append(key)
                 elif str(fact[key]) != str(value):
@@ -199,35 +192,25 @@ class BlockchainKnowledgeGraph:
             'mismatches': mismatches if not matches else []
         }
         
-    def mine_block(self) -> Dict[str, Any]:
+    def mine_block(self) -> Optional[Dict[str, Any]]:
         """
         Mine a new block with pending transactions.
-        
-        Returns:
-            The newly mined block
         """
         if not self.pending_transactions:
             return None
             
-        # Get the previous block
         previous_block = self.chain[-1]
         
-        # Create a new block
         block = {
             'index': len(self.chain),
             'timestamp': datetime.now().isoformat(),
-            'transactions': self.pending_transactions,
+            'transactions': list(self.pending_transactions),
             'previous_hash': previous_block['hash'],
             'nonce': 0
         }
         
-        # Mine the block (find a valid hash)
         block = self._proof_of_work(block)
-        
-        # Add the block to the chain
         self.chain.append(block)
-        
-        # Clear pending transactions
         self.pending_transactions = []
         
         return block
@@ -235,36 +218,31 @@ class BlockchainKnowledgeGraph:
     def get_fact_history(self, fact_id: str) -> List[Dict[str, Any]]:
         """
         Get the complete history of a fact from the blockchain.
-        
-        Args:
-            fact_id: ID of the fact to get history for
-            
-        Returns:
-            List of transactions related to the fact
         """
         return self._get_fact_transactions(fact_id)
         
     def verify_chain(self) -> Dict[str, Any]:
         """
         Verify the integrity of the entire blockchain.
-        
-        Returns:
-            Verification result
         """
-        # Check each block in the chain
+        if not self.chain:
+            return {'valid': False, 'error': "Chain is empty"}
+
+        genesis = self.chain[0]
+        if genesis.get('previous_hash') != '0' or not self._is_valid_hash(genesis, check_difficulty=False):
+            return {'valid': False, 'error': "Block 0 (genesis) has invalid hash"}
+
         for i in range(1, len(self.chain)):
             current_block = self.chain[i]
             previous_block = self.chain[i-1]
             
-            # Check if the previous hash matches
-            if current_block['previous_hash'] != previous_block['hash']:
+            if current_block.get('previous_hash') != previous_block.get('hash'):
                 return {
                     'valid': False,
                     'error': f"Block {i} has invalid previous hash"
                 }
                 
-            # Check if the block's hash is valid
-            if not self._is_valid_hash(current_block):
+            if not self._is_valid_hash(current_block, check_difficulty=True):
                 return {
                     'valid': False,
                     'error': f"Block {i} has invalid hash"
@@ -273,41 +251,41 @@ class BlockchainKnowledgeGraph:
         return {
             'valid': True,
             'blocks': len(self.chain),
-            'transactions': sum(len(block['transactions']) for block in self.chain)
+            'transactions': sum(len(block.get('transactions', [])) for block in self.chain)
         }
         
     def export_chain(self, filename: str) -> None:
         """
-        Export the blockchain to a file.
-        
-        Args:
-            filename: Path to save the blockchain
+        Export the blockchain to a file atomically.
         """
-        with open(filename, 'w', encoding='utf-8') as f:
+        parent = os.path.dirname(filename)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        tmp_path = f"{filename}.tmp.{os.getpid()}"
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(self.chain, f, indent=2)
+        os.replace(tmp_path, filename)
             
     def import_chain(self, filename: str) -> int:
         """
-        Import a blockchain from a file.
-        
-        Args:
-            filename: Path to load the blockchain from
-            
-        Returns:
-            Number of blocks imported
+        Import a blockchain from a file, preserving the current chain on failure.
         """
         with open(filename, 'r', encoding='utf-8') as f:
             chain = json.load(f)
+
+        if not isinstance(chain, list):
+            raise ValueError("Invalid blockchain: expected list of blocks")
             
-        # Verify the chain
+        previous_chain = list(self.chain)
         self.chain = chain
-        verification = self.verify_chain()
-        
-        if not verification['valid']:
-            raise ValueError(f"Invalid blockchain: {verification['error']}")
-            
-        # Rebuild the knowledge graph from the chain
-        self._rebuild_knowledge_graph()
+        try:
+            verification = self.verify_chain()
+            if not verification['valid']:
+                raise ValueError(f"Invalid blockchain: {verification['error']}")
+            self._rebuild_knowledge_graph()
+        except Exception:
+            self.chain = previous_chain
+            raise
         
         return len(chain)
         
@@ -377,64 +355,39 @@ class BlockchainKnowledgeGraph:
     def _proof_of_work(self, block: Dict[str, Any]) -> Dict[str, Any]:
         """
         Perform proof of work to find a valid hash.
-        
-        Args:
-            block: Block to mine
-            
-        Returns:
-            Mined block with valid hash
         """
-        # Define the difficulty (number of leading zeros required)
-        difficulty = 2
-        target = '0' * difficulty
+        target = '0' * self.difficulty
         
         while True:
-            # Calculate the hash
             block_hash = self._calculate_hash(block)
-            
-            # Check if the hash meets the difficulty requirement
             if block_hash.startswith(target):
                 block['hash'] = block_hash
                 return block
-                
-            # Increment the nonce and try again
             block['nonce'] += 1
             
-    def _is_valid_hash(self, block: Dict[str, Any]) -> bool:
+    def _is_valid_hash(self, block: Dict[str, Any], check_difficulty: bool = True) -> bool:
         """
-        Check if a block has a valid hash.
-        
-        Args:
-            block: Block to check
-            
-        Returns:
-            True if the hash is valid, False otherwise
+        Check if a block has a valid hash (and difficulty prefix when mined).
         """
-        # Calculate the expected hash
         expected_hash = self._calculate_hash(block)
-        
-        # Compare with the block's hash
-        return block['hash'] == expected_hash
+        actual_hash = block.get('hash')
+        if actual_hash != expected_hash:
+            return False
+        if check_difficulty and not actual_hash.startswith('0' * self.difficulty):
+            return False
+        return True
         
     def _get_fact_transactions(self, fact_id: str) -> List[Dict[str, Any]]:
         """
         Get all transactions related to a fact.
-        
-        Args:
-            fact_id: ID of the fact
-            
-        Returns:
-            List of transactions
         """
         transactions = []
         
-        # Search all blocks for transactions related to this fact
         for block in self.chain:
             for tx in block['transactions']:
                 if tx['type'] in ['add_fact', 'update_fact'] and tx['fact_id'] == fact_id:
                     transactions.append(tx)
                     
-        # Also check pending transactions
         for tx in self.pending_transactions:
             if tx['type'] in ['add_fact', 'update_fact'] and tx['fact_id'] == fact_id:
                 transactions.append(tx)
@@ -444,22 +397,13 @@ class BlockchainKnowledgeGraph:
     def _compute_expected_state(self, fact_id: str, transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Compute the expected state of a fact based on its transaction history.
-        
-        Args:
-            fact_id: ID of the fact
-            transactions: List of transactions related to the fact
-            
-        Returns:
-            Expected state of the fact
         """
         state = {}
         
         for tx in transactions:
             if tx['type'] == 'add_fact':
-                # Initial state from add_fact transaction
                 state = tx['fact_data'].copy()
             elif tx['type'] == 'update_fact':
-                # Apply updates
                 for key, value in tx['updates'].items():
                     state[key] = value
                     
@@ -469,40 +413,30 @@ class BlockchainKnowledgeGraph:
         """
         Rebuild the knowledge graph from the blockchain.
         """
-        # Clear the existing knowledge graph
         self.kg.graph.clear()
         
-        # Process all transactions in the chain
         for block in self.chain:
             for tx in block['transactions']:
                 if tx['type'] == 'add_fact':
-                    # Add fact to knowledge graph
                     fact_id = tx['fact_id']
                     fact_data = tx['fact_data'].copy()
                     
-                    # Convert reliability_rating from string to enum if present
-                    if 'reliability_rating' in fact_data and isinstance(fact_data['reliability_rating'], str):
-                        fact_data['reliability_rating'] = getattr(ReliabilityRating, fact_data['reliability_rating'])
+                    if 'reliability_rating' in fact_data:
+                        fact_data['reliability_rating'] = _parse_reliability(
+                            fact_data['reliability_rating']
+                        )
                         
-                    # Set defaults for required fields
-                    now = datetime.now()
-                    if 'date_recorded' not in fact_data:
-                        fact_data['date_recorded'] = now
-                    if 'last_updated' not in fact_data:
-                        fact_data['last_updated'] = now
-                    if 'related_facts' not in fact_data:
-                        fact_data['related_facts'] = []
-                    if 'contextual_notes' not in fact_data:
-                        fact_data['contextual_notes'] = ""
-                    if 'access_level' not in fact_data:
-                        fact_data['access_level'] = "public"
-                    if 'usage_count' not in fact_data:
-                        fact_data['usage_count'] = 0
+                    now = datetime.now().isoformat()
+                    fact_data.setdefault('date_recorded', now)
+                    fact_data.setdefault('last_updated', now)
+                    fact_data.setdefault('related_facts', [])
+                    fact_data.setdefault('contextual_notes', "")
+                    fact_data.setdefault('access_level', "public")
+                    fact_data.setdefault('usage_count', 0)
+                    fact_data.setdefault('publication_date', now)
                         
-                    # Add required fields that might be missing
-                    for field in ['source_title', 'author_creator', 'publication_date', 'url_reference']:
-                        if field not in fact_data:
-                            fact_data[field] = ""
+                    for field in ('source_title', 'author_creator', 'url_reference'):
+                        fact_data.setdefault(field, "")
                             
                     try:
                         self.kg.add_fact(fact_id=fact_id, **fact_data)
@@ -510,13 +444,13 @@ class BlockchainKnowledgeGraph:
                         print(f"Error adding fact during rebuild: {e}")
                         
                 elif tx['type'] == 'update_fact':
-                    # Update fact in knowledge graph
                     fact_id = tx['fact_id']
                     updates = tx['updates'].copy()
                     
-                    # Convert reliability_rating from string to enum if present
-                    if 'reliability_rating' in updates and isinstance(updates['reliability_rating'], str):
-                        updates['reliability_rating'] = getattr(ReliabilityRating, updates['reliability_rating'])
+                    if 'reliability_rating' in updates:
+                        updates['reliability_rating'] = _parse_reliability(
+                            updates['reliability_rating']
+                        )
                         
                     try:
                         if fact_id in self.kg.graph:

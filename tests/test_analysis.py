@@ -74,3 +74,26 @@ class TestKnowledgeGraphAnalyzer(unittest.TestCase):
         # Missing links
         links = analyzer.suggest_missing_links(threshold=0.1)
         self.assertGreaterEqual(len(links), 0)
+
+    def test_similarity_handles_tag_whitespace_empty_tags_and_mixed_ratings(self):
+        kg = KnowledgeGraph()
+        kg.graph.add_node("f1", fact_statement="Alpha beta", reliability_rating="VERIFIED", tags="")
+        kg.graph.add_node("f2", fact_statement="Gamma delta", reliability_rating=None, tags="")
+        kg.graph.add_node("f3", fact_statement="Alpha beta", reliability_rating=ReliabilityRating.UNVERIFIED, tags="a, b")
+        kg.graph.add_node("f4", fact_statement="Alpha beta", reliability_rating="LIKELY_TRUE", tags="b,  a")
+
+        analyzer = KnowledgeGraphAnalyzer(kg)
+        summary = analyzer.get_reliability_summary()
+        self.assertEqual(summary["VERIFIED"], 1)
+        self.assertEqual(summary["LIKELY_TRUE"], 1)
+        self.assertEqual(summary["UNVERIFIED"], 2)
+
+        imp = analyzer.get_fact_importance()
+        self.assertIn("f2", imp)
+
+        # Empty tags should NOT grant +0.2 bonus between disjoint f1 and f2.
+        sim_empty = analyzer._calculate_fact_similarity(kg.graph.nodes["f1"], kg.graph.nodes["f2"])
+        self.assertEqual(sim_empty, 0.0)
+        # Trimmed tags "a, b" vs "b,  a" should match completely.
+        sim_tags = analyzer._calculate_fact_similarity(kg.graph.nodes["f3"], kg.graph.nodes["f4"])
+        self.assertGreater(sim_tags, 0.5)

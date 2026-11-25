@@ -105,3 +105,55 @@ def test_reextract_skips_drops_without_source_text(tmp_path):
                           source_text=None))
     result = reextract_store(store, engine="svo")
     assert result["skipped"] >= 1
+
+
+def test_reextract_does_not_multiply_on_repeat_runs_and_skips_missing_shard(tmp_path):
+    store = KnowledgeStore(str(tmp_path / "store"))
+    store.write_drop(
+        Drop(
+            "orig",
+            "doc.txt",
+            content_hash("doc"),
+            facts=[_f("Marie Curie discovered radium.", "Marie Curie", "discovered", "radium")],
+            source_text="Marie Curie discovered radium.",
+        )
+    )
+    first = reextract_store(store, engine="svo")
+    assert first == {"reextracted": 1, "skipped": 0}
+    second = reextract_store(store, engine="svo")
+    assert second == {"reextracted": 1, "skipped": 0}
+    # 1 original + 2 reextractions (not 1 + 1 + 2 = 4!)
+    assert len(store.list_drops()) == 3
+    drop_ids = [d["drop_id"] for d in store.list_drops()]
+    assert "orig-reextract-svo" in drop_ids
+    assert "orig-reextract-svo-v2" in drop_ids
+
+    # Delete original shard on disk and verify missing shard is skipped gracefully.
+    orig_entry = next(d for d in store.list_drops() if d["drop_id"] == "orig")
+    (tmp_path / "store" / orig_entry["shard"]).unlink()
+    third = reextract_store(store, engine="svo")
+    assert third == {"reextracted": 0, "skipped": 1}
+
+
+def test_promote_and_contradictions_normalize_case_and_none_values(store):
+    store.write_drop(
+        Drop("d1", "a.txt", content_hash("a"), [
+            {"fact_statement": "Paris is in France.", "subject": "Paris", "predicate": "located_in",
+             "object": "France", "reliability_rating": "likely_true"},
+        ])
+    )
+    store.write_drop(
+        Drop("d2", "b.txt", content_hash("b"), [
+            {"fact_statement": "Paris is in France.", "subject": "paris", "predicate": "LOCATED_IN",
+             "object": "Texas", "reliability_rating": "unknown_tier"},
+        ])
+    )
+    promotions = promote_reliability(store)
+    assert len(promotions) == 1
+    assert promotions[0]["old_reliability"] == "LIKELY_TRUE"
+    assert promotions[0]["new_reliability"] == "VERIFIED"
+
+    conflicts = find_contradictions(store)
+    assert len(conflicts) == 1
+    assert conflicts[0]["subject"] == "Paris"
+    assert set(conflicts[0]["objects"]) == {"France", "Texas"}

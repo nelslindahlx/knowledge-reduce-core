@@ -151,7 +151,7 @@ class KnowledgeGraph:
                                usage_count=usage_count,
                                quality_score=quality_score)
         except Exception as e:
-            raise Exception(f"Error adding fact: {e}")
+            raise Exception(f"Error adding fact: {e}") from e
     
     def get_fact(self, fact_id: str) -> Dict[str, Any]:
         """Retrieve a fact from the knowledge graph.
@@ -178,24 +178,39 @@ class KnowledgeGraph:
             **kwargs: Keyword arguments representing attributes to update
             
         Raises:
-            ValueError: If fact_id is invalid or not found, or if an invalid attribute is specified
-            Exception: If there's an error updating the fact
+            ValueError: If fact_id is invalid or not found, or if an invalid attribute/value is specified
         """
         self.validate_fact_id(fact_id)
         if fact_id not in self.graph:
             raise ValueError(f"Fact ID '{fact_id}' not found in the graph.")
-        
-        try:
-            # If reliability_rating or usage_count is updated, recalculate quality_score
-            if 'reliability_rating' in kwargs or 'usage_count' in kwargs:
-                reliability_rating = kwargs.get('reliability_rating', self.graph.nodes[fact_id]['reliability_rating'])
-                usage_count = kwargs.get('usage_count', self.graph.nodes[fact_id]['usage_count'])
-                kwargs['quality_score'] = reliability_rating.value * 10 + usage_count * 2
-            
-            for key, value in kwargs.items():
-                if key in self.graph.nodes[fact_id]:
-                    self.graph.nodes[fact_id][key] = value
-                else:
-                    raise ValueError(f"Invalid attribute '{key}' for fact update.")
-        except Exception as e:
-            raise Exception(f"Error updating fact: {e}")
+
+        node = self.graph.nodes[fact_id]
+        # Validate all keys and types BEFORE mutating any node attribute.
+        for key in kwargs:
+            if key not in node:
+                raise ValueError(f"Invalid attribute '{key}' for fact update.")
+
+        if 'reliability_rating' in kwargs:
+            self.validate_reliability_rating(kwargs['reliability_rating'])
+
+        if 'usage_count' in kwargs:
+            uc = kwargs['usage_count']
+            if not isinstance(uc, int) or isinstance(uc, bool):
+                raise ValueError("usage_count must be an integer.")
+
+        prepared: Dict[str, Any] = {}
+        for key, value in kwargs.items():
+            if key == 'tags' and isinstance(value, (list, tuple)):
+                prepared[key] = ', '.join(str(t) for t in value) if value else ''
+            elif key in ('date_recorded', 'last_updated', 'publication_date') and isinstance(value, datetime):
+                prepared[key] = value.isoformat()
+            else:
+                prepared[key] = value
+
+        if 'reliability_rating' in prepared or 'usage_count' in prepared:
+            reliability_rating = prepared.get('reliability_rating', node['reliability_rating'])
+            usage_count = prepared.get('usage_count', node['usage_count'])
+            prepared['quality_score'] = reliability_rating.value * 10 + usage_count * 2
+
+        for key, value in prepared.items():
+            node[key] = value

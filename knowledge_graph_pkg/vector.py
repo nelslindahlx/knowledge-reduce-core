@@ -5,139 +5,101 @@ This module provides vector-based semantic search, query expansion,
 and advanced retrieval capabilities for knowledge graphs.
 """
 
-import numpy as np
-import re
+import hashlib
 import json
-from typing import Dict, List, Any, Union, Optional, Tuple, Set, Callable
-from datetime import datetime
-from .core import KnowledgeGraph, ReliabilityRating
+import os
+import re
+from typing import Dict, List, Any, Optional, Tuple
+import numpy as np
+from .core import KnowledgeGraph
+
+
+def _stable_hash_int(text: str) -> int:
+    digest = hashlib.sha256(str(text).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "little")
+
 
 class VectorKnowledgeGraph:
     """
     Class for vector-based knowledge graph operations.
-    
-    This class enhances knowledge graphs with vector embeddings for
-    semantic search, similarity matching, and advanced query capabilities.
-    
-    Attributes:
-        kg: The knowledge graph to enhance with vector capabilities
-        embedding_dim: Dimension of vector embeddings
-        embeddings: Dictionary mapping fact IDs to vector embeddings
     """
     
     def __init__(self, knowledge_graph: KnowledgeGraph, embedding_dim: int = 384):
         """
         Initialize a VectorKnowledgeGraph with a knowledge graph.
-        
-        Args:
-            knowledge_graph: KnowledgeGraph instance to enhance
-            embedding_dim: Dimension of vector embeddings
         """
         self.kg = knowledge_graph
         self.embedding_dim = embedding_dim
         self.embeddings = {}
         self._index = None
+        self._use_external_model = False
         
     def generate_embeddings(self, use_external_model: bool = False) -> int:
         """
         Generate vector embeddings for all facts in the knowledge graph.
-        
-        Args:
-            use_external_model: Whether to use an external embedding model
-                               (if False, uses a simpler hash-based approach)
-                               
-        Returns:
-            Number of embeddings generated
         """
+        self._use_external_model = bool(use_external_model)
+        self.embeddings = {}
         count = 0
         
         for node, data in self.kg.graph.nodes(data=True):
             if 'fact_statement' in data:
-                if use_external_model:
-                    # In a real implementation, this would use a proper embedding model
-                    # like sentence-transformers, OpenAI embeddings, etc.
-                    # This is a simplified placeholder implementation
+                if self._use_external_model:
                     embedding = self._generate_mock_embedding(data['fact_statement'])
                 else:
-                    # Simple hash-based embedding for demonstration
                     embedding = self._hash_based_embedding(data['fact_statement'])
                     
                 self.embeddings[node] = embedding
                 count += 1
                 
-        # Build the index for fast similarity search
         self._build_index()
-                
         return count
         
     def semantic_search(self, query: str, top_k: int = 5) -> List[Tuple[str, float]]:
         """
         Perform semantic search using vector similarity.
-        
-        Args:
-            query: Search query string
-            top_k: Number of top results to return
-            
-        Returns:
-            List of tuples containing (fact_id, similarity_score)
         """
-        # Generate query embedding
-        if self._is_external_model_available():
+        if top_k <= 0 or not self.embeddings:
+            return []
+
+        if self._use_external_model or self._is_external_model_available():
             query_embedding = self._generate_mock_embedding(query)
         else:
             query_embedding = self._hash_based_embedding(query)
             
-        # If index is available, use it for fast search
         if self._index is not None:
             return self._search_with_index(query_embedding, top_k)
             
-        # Otherwise, perform linear search
         similarities = []
-        
         for fact_id, embedding in self.embeddings.items():
             similarity = self._cosine_similarity(query_embedding, embedding)
             similarities.append((fact_id, similarity))
             
-        # Sort by similarity score (descending)
         similarities.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top k results
         return similarities[:top_k]
         
     def find_similar_facts(self, fact_id: str, top_k: int = 5) -> List[Tuple[str, float]]:
         """
         Find facts similar to a given fact using vector similarity.
-        
-        Args:
-            fact_id: ID of the fact to find similar facts for
-            top_k: Number of top results to return
-            
-        Returns:
-            List of tuples containing (fact_id, similarity_score)
         """
         if fact_id not in self.embeddings:
             raise ValueError(f"No embedding found for fact ID '{fact_id}'")
+        if top_k <= 0:
+            return []
             
         fact_embedding = self.embeddings[fact_id]
         
-        # If index is available, use it for fast search
         if self._index is not None:
-            results = self._search_with_index(fact_embedding, top_k + 1)  # +1 to account for self-match
-            # Filter out the query fact itself
-            return [(id, score) for id, score in results if id != fact_id]
+            results = self._search_with_index(fact_embedding, top_k + 1)
+            return [(fid, score) for fid, score in results if fid != fact_id][:top_k]
             
-        # Otherwise, perform linear search
         similarities = []
-        
         for other_id, embedding in self.embeddings.items():
-            if other_id != fact_id:  # Skip the query fact
+            if other_id != fact_id:
                 similarity = self._cosine_similarity(fact_embedding, embedding)
                 similarities.append((other_id, similarity))
                 
-        # Sort by similarity score (descending)
         similarities.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top k results
         return similarities[:top_k]
         
     def query_expansion(self, query: str, expansion_terms: int = 3) -> str:
@@ -172,135 +134,87 @@ class VectorKnowledgeGraph:
     def cluster_facts(self, num_clusters: int = 5) -> Dict[int, List[str]]:
         """
         Cluster facts based on vector similarity.
-        
-        Args:
-            num_clusters: Number of clusters to create
-            
-        Returns:
-            Dictionary mapping cluster IDs to lists of fact IDs
         """
         if not self.embeddings:
             raise ValueError("No embeddings available. Generate embeddings first.")
+        if num_clusters <= 0:
+            raise ValueError("num_clusters must be a positive integer.")
             
-        # Simple k-means clustering implementation
-        # In a real implementation, use a proper clustering library
-        
-        # Convert embeddings to a matrix
         fact_ids = list(self.embeddings.keys())
         embeddings_matrix = np.array([self.embeddings[fid] for fid in fact_ids])
+        k = min(int(num_clusters), len(fact_ids))
         
-        # Initialize cluster centers randomly
-        indices = np.random.choice(len(fact_ids), num_clusters, replace=False)
+        rng = np.random.default_rng(42)
+        indices = rng.choice(len(fact_ids), k, replace=False)
         centers = embeddings_matrix[indices]
         
-        # Perform k-means clustering (simplified)
-        clusters = {i: [] for i in range(num_clusters)}
+        clusters = {i: [] for i in range(k)}
         
-        # Assign facts to nearest cluster
         for i, fact_id in enumerate(fact_ids):
             embedding = embeddings_matrix[i]
-            
-            # Find nearest center
             distances = [np.linalg.norm(embedding - center) for center in centers]
-            nearest_cluster = np.argmin(distances)
-            
-            # Assign to cluster
+            nearest_cluster = int(np.argmin(distances))
             clusters[nearest_cluster].append(fact_id)
             
         return clusters
         
     def save_embeddings(self, filename: str) -> None:
         """
-        Save embeddings to a file.
-        
-        Args:
-            filename: Path to save the embeddings
+        Save embeddings to a file atomically.
         """
-        # Convert numpy arrays to lists for JSON serialization
         serializable_embeddings = {
             fact_id: embedding.tolist() if isinstance(embedding, np.ndarray) else embedding
             for fact_id, embedding in self.embeddings.items()
         }
         
-        with open(filename, 'w', encoding='utf-8') as f:
+        parent = os.path.dirname(filename)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        tmp_path = f"{filename}.tmp.{os.getpid()}"
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(serializable_embeddings, f)
+        os.replace(tmp_path, filename)
             
     def load_embeddings(self, filename: str) -> int:
         """
         Load embeddings from a file.
-        
-        Args:
-            filename: Path to load the embeddings from
-            
-        Returns:
-            Number of embeddings loaded
         """
         with open(filename, 'r', encoding='utf-8') as f:
             serialized_embeddings = json.load(f)
             
-        # Convert lists back to numpy arrays
         self.embeddings = {
             fact_id: np.array(embedding) if isinstance(embedding, list) else embedding
             for fact_id, embedding in serialized_embeddings.items()
         }
         
-        # Rebuild the index
         self._build_index()
-        
         return len(self.embeddings)
         
     def _generate_mock_embedding(self, text: str) -> np.ndarray:
         """
-        Generate a mock embedding for demonstration purposes.
-        
-        In a real implementation, this would use a proper embedding model.
-        
-        Args:
-            text: Text to generate embedding for
-            
-        Returns:
-            Vector embedding as numpy array
+        Generate a deterministic mock embedding using an isolated local RNG.
         """
-        # Create a deterministic but somewhat meaningful embedding based on text
-        # This is just for demonstration - not for real use
-        
-        # Hash the text to get a seed
-        hash_val = hash(text) % (2**32)
-        np.random.seed(hash_val)
-        
-        # Generate a random embedding
-        embedding = np.random.normal(0, 1, self.embedding_dim)
-        
-        # Normalize to unit length
-        embedding = embedding / np.linalg.norm(embedding)
-        
+        seed_val = _stable_hash_int(text) % (2**32)
+        rng = np.random.default_rng(seed_val)
+        embedding = rng.normal(0, 1, self.embedding_dim)
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
         return embedding
         
     def _hash_based_embedding(self, text: str) -> np.ndarray:
         """
-        Generate a simple hash-based embedding.
-        
-        Args:
-            text: Text to generate embedding for
-            
-        Returns:
-            Vector embedding as numpy array
+        Generate a deterministic hash-based embedding.
         """
-        # Initialize embedding vector
         embedding = np.zeros(self.embedding_dim)
+        words = re.findall(r'\b\w+\b', str(text or '').lower())
         
-        # Normalize and tokenize text
-        text = text.lower()
-        words = re.findall(r'\b\w+\b', text)
-        
-        # For each word, update specific dimensions based on hash
         for word in words:
-            word_hash = hash(word) % self.embedding_dim
+            word_hash = _stable_hash_int(word) % self.embedding_dim
             embedding[word_hash % self.embedding_dim] += 1
             embedding[(word_hash + 1) % self.embedding_dim] += 0.5
             embedding[(word_hash + 2) % self.embedding_dim] += 0.25
             
-        # Normalize to unit length if not zero
         norm = np.linalg.norm(embedding)
         if norm > 0:
             embedding = embedding / norm

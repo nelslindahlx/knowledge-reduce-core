@@ -86,3 +86,27 @@ class TestStoreAudit(unittest.TestCase):
             with patch("sys.stdout"):
                 exit_code = main(["audit-store", "--store", tmpdir])
                 self.assertEqual(exit_code, 0)
+
+    def test_audit_summary_canonical_keys(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            store = KnowledgeStore(tmpdir)
+            store.write_drop(
+                Drop(
+                    drop_id="canon_1",
+                    source="canon.txt",
+                    source_hash="h_canon",
+                    facts=[
+                        {
+                            "subject": "Alpha",
+                            "predicate": "activates",
+                            "object": "Beta",
+                            "fact_statement": "Alpha activates Beta.",
+                            "reliability_rating": "VERIFIED",
+                        }
+                    ],
+                )
+            )
+            report = store.audit_summary()
+            self.assertEqual(report["total_facts"], 1)
+            self.assertEqual(report["missing_fields_count"], 0)
+            self.assertEqual(report["reliability_tier_distribution"]["VERIFIED"], 1)

@@ -112,3 +112,28 @@ def test_verbalize_relation_maps_predicates(skg):
     rel = {"subject": "Marie Curie", "subject_type": "PERSON",
            "predicate": "born_in", "object": "Warsaw", "object_type": "ENTITY"}
     assert skg.verbalize_relation(rel) == "Marie Curie was born in Warsaw."
+    rel_role = {"subject": "Charles Carlsen", "predicate": "president_of", "object": "JCCC"}
+    assert skg.verbalize_relation(rel_role) == "Charles Carlsen was president of JCCC."
+
+
+def test_created_facts_preserve_entity_types_and_avoid_id_collisions(skg):
+    ids1 = skg.create_facts_from_text("Apollo launched missions.", source_id="doc", reliability=ReliabilityRating.LIKELY_TRUE)
+    ids2 = skg.create_facts_from_text("Curie discovered polonium.", source_id="doc", reliability=ReliabilityRating.LIKELY_TRUE)
+    assert ids1 and ids2
+    assert set(ids1).isdisjoint(set(ids2))
+    assert skg.kg.get_fact(ids1[0])["subject_type"] == "ENTITY"
+    assert skg.kg.get_fact(ids1[0])["object_type"] is not None
+
+
+def test_find_semantically_similar_facts_above_0_5_threshold(skg):
+    skg.kg.add_fact(
+        "f1", "Marie Curie discovered radium in Paris.", "Science", ["curie"],
+        "2026-01-01", "2026-01-01", ReliabilityRating.VERIFIED, "s1", "S1", "A", "2026-01-01", "", [], "", "public", 1
+    )
+    skg.kg.add_fact(
+        "f2", "Marie Curie discovered radium in Warsaw.", "Science", ["curie"],
+        "2026-01-01", "2026-01-01", ReliabilityRating.VERIFIED, "s2", "S2", "A", "2026-01-01", "", [], "", "public", 1
+    )
+    similar = skg.find_semantically_similar_facts("f1", threshold=0.5)
+    assert similar and similar[0][0] == "f2"
+    assert similar[0][1] > 0.7

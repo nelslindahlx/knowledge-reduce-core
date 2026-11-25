@@ -1,29 +1,29 @@
-# Latest Walkthrough: Phase 3 ModelReduce Probing, Consensus, Critique, Eval, Crawler, Graveyard & Training
+# Latest Walkthrough: Phase 4 Core Graph, V1 Pipeline, Storage & Extended Modules
 
-Summary of Phase 3 remediation from `docs/plans/master_plan_v0_4_0.md` executed on branch `fix/model-reduce-pipeline`.
+Summary of Phase 4 remediation from `docs/plans/master_plan_v0_4_0.md` executed on branch `fix/core-v1-legacy-modules`.
 
 ## Changes Applied
-- **Model Probing & Prompt Templates (`model_probe.py`, `probe_templates.py`)**:
-  - Updated `OpenAICompatibleBackend.generate_structured()` to emit `response_format={"type": "json_schema", ...}` for non-empty schemas (and `"json_object"` when empty), added `timeout` across Ollama/OpenAI/Gemini clients, and logged API errors.
-  - Sanitized Gemini `response_schema` against `minimum`/`maximum`/`additionalProperties`, updated default Gemini model to `gemini-2.0-flash`, enabled `logits_all=True` and numeric filtering of `None` token logprobs on `LlamaCppBackend`, fixed `get_backend` kwargs routing, varied per-probe seeds and no-entity domain prompts, and guarded `seed_entities_from_graph(..., limit <= 0)`.
-- **Fact Critic (`critique.py`)**:
-  - Aligned `FactCritic.critique_fact()` with the real `generate_structured(prompt, schema)` and `generate_text_with_logprobs(prompt)` backend contract, enforced standard lowercase `CRITIQUE_SCHEMA`, added strict `_parse_bool()` (so `"false"` parses as `False`), failed closed (`is_factual=False`) on backend/parse errors, added tautology (`subj == obj`) rejection in offline heuristics, and stopped masking invalid backend / API-key `ValueError`s.
-- **Consensus, Cross-Model Verification, Distillation & Drops (`factory.py`, `consensus.py`, `cross_model.py`, `model_distill.py`, `model_drop.py`)**:
-  - Added `batch_drop(..., include_engine_in_hash=True)` and wired `ConsensusEngine` to stamp real engine provenance (`"svo"`, `"spacy"`), retain drops across multiple extractors, and route graph targets via `get_graph_store()` (supporting Neo4j URIs and KùzuDB).
-  - Inverted the buggy `ml in name` model weight check in `cross_model.py` to normalized boundary matching (handling colons and `"gpt-4o"`), guarded empty-SPO clusters and `[]` embeddings, tracked `UNVERIFIED` cluster counts, fixed `min_reliability` validation and `quality_score: None` handling in `ModelKnowledgeDistiller`, preserved valid compound phrases (`"DNA polymerase"`) in `model_drop.py`, and hardened `_safe()` drop IDs against path traversal.
-- **Embeddings, Eval, Crawler, Graveyard & Training (`embeddings.py`, `model_eval.py`, `crawler.py`, `graveyard.py`, `training_prep.py`, `train.py`)**:
-  - Hardened `cosine_similarity`, bounded thread-safe `EmbeddingCache` (skipping `[]`), and O(1) `VectorIndex` dimension validation.
-  - Fixed `ModelShardEvaluator` recall (`matched_gold / len(positives)`), empty-shard `0.0` precision, negation/boundary matching in `_lenient_match`, tier normalization, partial `check_gates` overrides, and numeric report sorting.
-  - Propagated missing-engine `ImportError` in `ModelCrawler`, added `max_topics` cap and `None` text guards, stamped string `reliability_rating` + `model_provenance`, closed `graveyard.py` checkpoint handles atomically, preserved unrelated checkpoints when `resume=False`, and skipped checkpointing 0-fact runs.
-  - Made `prepare_sft_dataset()` atomic and in-place safe, accepted `"system"` messages, rejected non-string content, added `prepare_mlx_dataset()`, and merged `mlx_lm.lora.CONFIG_DEFAULTS` in `MLXTrainer`.
-- **Upgraded Test Coverage**:
-  - Expanded 15+ test modules (`test_critique.py`, `test_model_probe.py`, `test_backends.py`, `test_hardening.py`, `test_probe_templates.py`, `test_consensus.py`, `test_cross_model.py`, `test_weighted_consensus.py`, `test_model_distill.py`, `test_model_drop.py`, `test_embeddings.py`, `test_model_eval.py`, `test_crawler.py`, `test_graveyard.py`, `test_training_prep.py`, `test_train_wrapper.py`), eliminating permanent `sys.modules` leaks in `test_train_wrapper.py` and `test_model_probe.py`.
+- **Storage, Lifecycle, Catalog & Factory (`store.py`, `lifecycle.py`, `catalog.py`, `factory.py`, `factstore.py`)**:
+  - Updated `KnowledgeStore.audit_summary()` to recognize both canonical (`reliability_rating`, `fact_statement`) and legacy (`reliability`, `statement`) keys; added path-containment and ID/date sanitization in `_shard_path`/`iter_facts`, atomic shard/manifest writes, `{**safe, "record": "fact"}` collision protection, non-overwriting shard versioning (`-v2`), and `source=None` safety in `stats()`.
+  - Made `reextract_store()` skip derived `-reextract-` drops and missing shards, normalize reliability/subject/predicate matching in `promote_reliability()` and `find_contradictions()`, and avoid `None` sorting crashes.
+  - Added context manager support, parameterized `LIMIT ?`, case-insensitive exact `reliability` plus `min_reliability` ladder queries, and `NULL`-safe `stats()` to `Catalog`; made `scan_folder()` raise `FileNotFoundError` consistently on missing dirs, fixed `format_report` falsy-zero counts, and added atomic normalized persistence to `FactStore`.
+- **Extraction, Semantic, Core & Distillation (`spacy_extractor.py`, `semantic.py`, `core.py`, `extraction.py`, `coref.py`, `evaluation.py`, `distillation.py`, `quality.py`, `qa.py`, `ingest.py`, `export.py`)**:
+  - Enabled spaCy's lemmatizer (`disable=["ner"]`) with safe fallback, stored `subject_type`/`object_type` on nodes, removed the broken `0.405` similarity cap in `SemanticKnowledgeGraph._calculate_semantic_similarity()`, prevented `fact_id` collisions on repeated `source_id` runs, and expanded predicate verbalizations.
+  - Made `KnowledgeGraph.update_fact()` validate all keys and types atomically before mutating, normalize `tags`/`datetime` types consistently, and raise `ValueError` directly.
+  - Hardened `SVOExtractor` copula folding against relative clauses while preserving `"Civic engagement..."` and `"Johnson & Johnson"`, filtered sentence-opener stopwords from `coref.py` while keeping `"The Beatles"`, prevented `""` and short `"is"` stems from false-matching predicates in `evaluation.py`, enforced reliability/null guards and atomic writes in `KnowledgeDistiller`/`FactQualityFilter`/`QAGenerator`, preserved `snake_case` underscores in `markdown_to_text`, separated `</td>`/`</th>` table cells in HTML ingestion, and returned `0` for empty `estimate_tokens("")`.
+- **Extended & Legacy Modules (`enhanced.py`, `utils.py`, `blockchain.py`, `streaming.py`, `sharding.py`, `vector.py`, `analysis.py`, `visualization.py`)**:
+  - Replaced method-level `@lru_cache` with toggleable per-instance caches in `EnhancedKnowledgeGraph`, prevented dict mutation in `batch_add_facts()`, and fixed `save_to_file()`/`load_from_file()` round-trips (`quality_score`, comma-string `tags`).
+  - Made `utils.py` import `requests`/`bs4` lazily, validate `http`/`https` schemes and request timeouts, and round-trip JSON/CSV/filter/merge safely via `_add_node_data_to_kg()`.
+  - Fixed `BlockchainKnowledgeGraph` JSON serialization, caller dict immutability, normalized tag comparison in `verify_fact()`, PoW/genesis validation in `verify_chain()`, and chain preservation on invalid `import_chain()`.
+  - Added `RLock` synchronization, `finally: task_done()`, full field defaults, and `limit <= 0` handling in `StreamingKnowledgeGraph`; added `shard_size` validation, SHA-256 hashing, deterministic ordering, and stale-file cleanup in `ShardedKnowledgeGraph.optimize_shards()`; aligned `VectorKnowledgeGraph` vector spaces, deterministic SHA-256 embeddings, and small-corpus clustering; fixed tag whitespace and mixed reliability handling in `analysis.py`; and made `visualization.py` import `matplotlib` lazily while sanitizing GEXF/GraphML attributes, guarding empty graphs, and mapping reliability colors by tier name.
+- **Expanded Tests**:
+  - Expanded 18 Cluster A/analysis/visualization test modules and added 6 new Cluster B test suites (`tests/test_enhanced.py`, `tests/test_utils.py`, `tests/test_blockchain.py`, `tests/test_streaming.py`, `tests/test_sharding.py`, `tests/test_vector_kg.py`) with zero CWD leftovers or `sys.modules` leaks.
 
 ## Verification Results
 
 | Check | Result | Timing |
 |---|---|---|
-| `make local-ci` (`canary`, `skill`, `lint`, `test`) | `395 passed, 5 skipped`, `72.42%` coverage (`>= 58%` gate) | `5.60s` (`pytest`) |
-| `make smoke-pr` (`canary`, `skill`, `lint`, Stage 1 & 2) | Stage 1 & Stage 2 passed cleanly (`1` optional skip) | Passed |
-| `make canary` (`-W error::Warning` import + `tests/meta/`) | `10 passed`, zero import warnings | `< 1s` |
+| `knowledgereduce eval --gold data/gold_set.json` | `P=0.800, R=0.923, F1=0.857` (`12 TP, 3 FP, 1 FN`) | `< 1s` |
+| `make local-ci` (`canary`, `skill`, `lint`, `test`) | `433 passed, 5 skipped`, `84.53%` coverage (`>= 58%` gate) | `6.06s` (`pytest`) |
+| `make smoke-pr` (`canary`, `skill`, `lint`, Stage 1 & 2) | All stages passed cleanly | Passed |
 | `make lint` (`ruff check` + strict governance check/format) | `All checks passed!`, `4 files already formatted` | `< 1s` |

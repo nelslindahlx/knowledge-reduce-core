@@ -13,6 +13,15 @@ store, so it is safe to delete and regenerate. Pure stdlib (``sqlite3``).
 import sqlite3
 from typing import Any, Dict, List, Optional
 
+_RELIABILITY_LADDER = ["UNVERIFIED", "POSSIBLY_TRUE", "LIKELY_TRUE", "VERIFIED"]
+
+
+def _norm_rel(val: Any) -> str:
+    if hasattr(val, "name"):
+        val = val.name
+    s = str(val or "").strip().upper()
+    return s or "UNVERIFIED"
+
 
 class Catalog:
     """A rebuildable SQLite index over a :class:`KnowledgeStore`."""
@@ -22,6 +31,12 @@ class Catalog:
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
         self._create_schema()
+
+    def __enter__(self) -> "Catalog":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     def _create_schema(self) -> None:
         self._conn.executescript(
@@ -54,16 +69,18 @@ class Catalog:
         self._conn.execute("DELETE FROM facts")
         rows = []
         for f in store.iter_facts():
+            stmt = f.get("fact_statement") or f.get("statement") or ""
+            rel = _norm_rel(f.get("reliability_rating") or f.get("reliability"))
             rows.append((
                 f.get("_drop_id"),
                 f.get("_source"),
                 f.get("subject"),
                 f.get("predicate"),
                 f.get("object"),
-                f.get("fact_statement"),
+                stmt,
                 f.get("question"),
                 f.get("answer"),
-                f.get("reliability_rating"),
+                rel,
                 int(f.get("quality_score") or 0),
                 f.get("category"),
             ))
@@ -81,15 +98,25 @@ class Catalog:
 
     def query(self, source: Optional[str] = None, reliability: Optional[str] = None,
               category: Optional[str] = None, min_quality: Optional[int] = None,
-              limit: Optional[int] = None) -> List[Dict[str, Any]]:
+              limit: Optional[int] = None,
+              min_reliability: Optional[str] = None) -> List[Dict[str, Any]]:
         """Query indexed facts with optional filters; returns row dicts."""
         clauses, params = [], []
         if source is not None:
             clauses.append("source = ?")
             params.append(source)
         if reliability is not None:
-            clauses.append("reliability = ?")
-            params.append(reliability)
+            clauses.append("UPPER(reliability) = ?")
+            params.append(_norm_rel(reliability))
+        if min_reliability is not None:
+            norm_min = _norm_rel(min_reliability)
+            if norm_min not in _RELIABILITY_LADDER:
+                raise ValueError(f"Unknown min_reliability: {min_reliability!r}")
+            idx = _RELIABILITY_LADDER.index(norm_min)
+            allowed = _RELIABILITY_LADDER[idx:]
+            placeholders = ",".join("?" for _ in allowed)
+            clauses.append(f"UPPER(COALESCE(reliability, 'UNVERIFIED')) IN ({placeholders})")
+            params.extend(allowed)
         if category is not None:
             clauses.append("category = ?")
             params.append(category)
@@ -102,7 +129,8 @@ class Catalog:
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY quality DESC, id ASC"
         if limit is not None:
-            sql += f" LIMIT {int(limit)}"
+            sql += " LIMIT ?"
+            params.append(max(0, int(limit)))
 
         return [dict(r) for r in self._conn.execute(sql, params).fetchall()]
 
@@ -111,12 +139,12 @@ class Catalog:
         total = self.count()
         drops = self._conn.execute("SELECT COUNT(DISTINCT drop_id) FROM facts").fetchone()[0]
         sources = self._conn.execute("SELECT COUNT(DISTINCT source) FROM facts").fetchone()[0]
-        by_rel = {
-            row["reliability"]: row["n"]
-            for row in self._conn.execute(
-                "SELECT reliability, COUNT(*) AS n FROM facts GROUP BY reliability"
-            ).fetchall()
-        }
+        by_rel: Dict[str, int] = {}
+        for row in self._conn.execute(
+            "SELECT reliability, COUNT(*) AS n FROM facts GROUP BY reliability"
+        ).fetchall():
+            key = _norm_rel(row["reliability"])
+            by_rel[key] = by_rel.get(key, 0) + row["n"]
         return {
             "total_facts": total,
             "total_drops": drops,

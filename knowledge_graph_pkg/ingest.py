@@ -39,8 +39,9 @@ def markdown_to_text(md: str) -> str:
     text = re.sub(r"(?m)^\s{0,3}>\s?", "", text)
     text = re.sub(r"(?m)^\s{0,3}[-*+]\s+", "", text)
     text = re.sub(r"(?m)^\s{0,3}\d+\.\s+", "", text)
-    # Emphasis / bold / inline code markers
-    text = re.sub(r"[*_`~]", "", text)
+    # Emphasis / bold / inline code markers (preserve snake_case underscores)
+    text = re.sub(r"[*`~]", "", text)
+    text = re.sub(r"(?<!\w)_+|_+(?!\w)", "", text)
     # Collapse excess blank lines.
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -53,6 +54,8 @@ def _strip_tags(fragment: str) -> str:
     """Convert an HTML fragment to text, separating block elements."""
     # Drop script/style entirely.
     fragment = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", fragment)
+    # Separate table cells cleanly so adjacent columns do not glue together.
+    fragment = re.sub(r"(?i)</t[dh]\s*>", " ", fragment)
     # Block-level close tags / <br> become newlines.
     fragment = re.sub(r"(?i)</(p|div|li|h[1-6]|blockquote|tr|section|article)\s*>", "\n", fragment)
     fragment = re.sub(r"(?i)<br\s*/?>", "\n", fragment)

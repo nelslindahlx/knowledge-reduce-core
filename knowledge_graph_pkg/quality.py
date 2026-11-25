@@ -58,8 +58,8 @@ class FactQualityFilter:
     # ------------------------------------------------------------------ #
     def is_acceptable(self, fact: Dict[str, Any]) -> bool:
         """Return True if the fact passes all quality gates."""
-        subject = (fact.get("subject") or "").strip()
-        object_ = (fact.get("object") or "").strip()
+        subject = str(fact.get("subject") or "").strip()
+        object_ = str(fact.get("object") or "").strip()
 
         # Non-empty subject and object.
         if not subject or not object_:
@@ -107,8 +107,8 @@ class FactQualityFilter:
         """
         if not self.is_acceptable(fact):
             # Still return a small gradient so clearly-worse facts rank lower.
-            subject = (fact.get("subject") or "").strip()
-            object_ = (fact.get("object") or "").strip()
+            subject = str(fact.get("subject") or "").strip()
+            object_ = str(fact.get("object") or "").strip()
             penalty = 0.0
             if subject and subject.split()[0].lower() not in _SUBJECT_STOPWORDS:
                 penalty += 0.1
@@ -116,7 +116,7 @@ class FactQualityFilter:
                 penalty += 0.1
             return penalty
 
-        object_ = fact["object"].strip()
+        object_ = str(fact.get("object") or "").strip()
         # Brevity bonus: shorter objects score higher (capped).
         brevity = max(0.0, 1.0 - len(object_) / max(1, self.max_object_len))
         entity_bonus = 0.3 if fact.get("subject_type") == "ENTITY" else 0.0

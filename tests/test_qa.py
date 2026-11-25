@@ -69,3 +69,9 @@ def test_created_facts_store_question_and_answer():
     assert node.get("subject") == "Marie Curie"
     assert node.get("predicate") == "discovered"
     assert node.get("object") == "radium"
+
+
+def test_none_predicate_does_not_raise(qa):
+    q, a = qa.generate({"subject": "Alice", "predicate": None, "object": "Bob"})
+    assert q == "What is related to Alice?"
+    assert a == "Bob"

@@ -87,3 +87,16 @@ def test_title_abbreviation_does_not_split_sentence(ex):
     assert any(s == "Dr. Raymond Davis" or s == "Raymond Davis" for s, p, o in t)
     # the object must not be just "Dr" from a bad split
     assert all(o != "Dr" for s, p, o in t)
+
+
+def test_active_verb_before_relative_copula_does_not_fold_into_subject(ex):
+    rels = ex.extract("Albert Einstein discovered relativity which was revolutionary.")
+    t = _triples(rels)
+    assert any(s == "Albert Einstein" and p == "discovered" for s, p, o in t)
+
+
+def test_expletive_and_ampersand_company_names(ex):
+    assert ex.extract("There is a problem.") == []
+    rels = ex.extract("Johnson & Johnson acquired Synthes.")
+    subjects = {r["subject"] for r in rels}
+    assert "Johnson & Johnson" in subjects

@@ -43,6 +43,8 @@ def estimate_tokens(text: str) -> int:
     A cheap, model-agnostic heuristic — good enough for budgeting without
     pulling in a tokenizer dependency.
     """
+    if not text or not text.strip():
+        return 0
     return max(1, len(text) // 4)
 
 

@@ -18,6 +18,8 @@ _SUPPORTED_EXTS = {".txt", ".md", ".markdown", ".html", ".htm", ".pdf"}
 
 def scan_folder(folder: str, recursive: bool = False) -> List[str]:
     """Return supported document paths in ``folder`` (sorted)."""
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(f"Folder not found: {folder}")
     found = []
     if recursive:
         for root, _dirs, files in os.walk(folder):
@@ -137,7 +139,11 @@ def format_report(report: Dict[str, Any]) -> str:
     ]
     for it in report["items"]:
         tag = it["status"]
-        extra = f" ({it['facts']} facts)" if it.get("facts") else (
-            f" ({it.get('error','')})" if tag == "error" else "")
+        if tag == "dropped":
+            extra = f" ({it.get('facts', 0)} facts)"
+        elif tag == "error":
+            extra = f" ({it.get('error', '')})"
+        else:
+            extra = ""
         lines.append(f"    [{tag}] {it['source']}{extra}")
     return "\n".join(lines)
