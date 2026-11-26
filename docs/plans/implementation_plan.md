@@ -33,8 +33,14 @@ Master roadmap archived in `docs/plans/master_plan_v0_4_0.md`.
 - `[x]` Fixed extraction, lemmatization, semantic similarity, core updates, coref, evaluation & distillation (`spacy_extractor.py`, `semantic.py`, `core.py`, `extraction.py`, `coref.py`, `evaluation.py`, `distillation.py`, `quality.py`, `qa.py`, `ingest.py`, `export.py`)
 - `[x]` Hardened all 8 extended modules (`enhanced.py`, `utils.py`, `blockchain.py`, `streaming.py`, `sharding.py`, `vector.py`, `analysis.py`, `visualization.py`)
 - `[x]` Expanded Cluster A tests and added 6 Cluster B test suites (`84.53%` total coverage, gold F1 `0.857`)
-- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & PR #5 submission
+- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merged PR #5 (`2bbadc4`)
+
+## Phase 5: CLI Packaging & Error Handling, Scripts, Examples & Test Isolation (`PR #6`)
+- `[x]` Hardened `knowledge_graph_pkg/cli.py` (packaged `_import_script`, dead `ImportError` fixes, `.close()` guards, `catalog --min-quality 0`, single-pass `query-graph` & `distill`, atomic outputs, exit codes)
+- `[x]` Hardened all scripts (`run_suite.py`, `download_and_crawl.py`, `test_drive.py`, `mirror_skill.py`, `train_mlx.py`, `train_sft.py`)
+- `[x]` Fixed and verified all 7 `examples/*.py` + `scripts/test_drive.py` offline with zero CWD leftovers
+- `[x]` Isolated `tests/test_compile_sft.py`, lazy `find_spec` in `tests/conftest.py`, expanded `tests/test_cli.py` (`443 passed, 5 skipped`, `86.23%` coverage)
+- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `run_suite.py --stage all`, `make audit-prs`) & PR #6 submission
 
 ## Remaining Phases (`v0.4.0`)
-- `[ ]` Phase 5: CLI Packaging & Error Handling, Scripts, Examples & Test Isolation (`PR #6`)
 - `[ ]` Phase 6: Coverage Hardening, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)

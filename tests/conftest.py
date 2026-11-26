@@ -1,11 +1,11 @@
+import importlib.util
 import pytest
-import importlib
+
 
 def check_import(name: str) -> bool:
     try:
-        importlib.import_module(name)
-        return True
-    except ImportError:
+        return importlib.util.find_spec(name) is not None
+    except (ModuleNotFoundError, ValueError):
         return False
 
 # Detect environments

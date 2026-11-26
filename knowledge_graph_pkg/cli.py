@@ -13,13 +13,66 @@ Subcommands:
 """
 
 import argparse
+import importlib
+import importlib.util
+import json
+import os
+import re
 import sys
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from .core import KnowledgeGraph, ReliabilityRating
 from .semantic import SemanticKnowledgeGraph
 from .distillation import KnowledgeDistiller
 from .quality import FactQualityFilter
+
+
+def _write_lines_atomic(path: str, lines: List[str]) -> None:
+    """Write newline-terminated lines atomically via a temporary sibling file."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{path}.tmp.{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        for ln in lines:
+            fh.write(ln + "\n")
+    os.replace(tmp_path, path)
+
+
+def _write_json_atomic(path: str, payload: Any) -> None:
+    """Write JSON atomically via a temporary sibling file."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{path}.tmp.{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, path)
+
+
+def _validate_split(split: Optional[float]) -> bool:
+    if split is not None and not 0.0 <= split <= 1.0:
+        print("error: --split must be between 0.0 and 1.0.", file=sys.stderr)
+        return False
+    return True
+
+
+def _import_script(module_name: str):
+    """Import a helper script module from the checkout or raise ImportError."""
+    try:
+        return importlib.import_module(f"scripts.{module_name}")
+    except ImportError as first_exc:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        script_path = os.path.join(repo_root, "scripts", f"{module_name}.py")
+        if os.path.isfile(script_path):
+            spec = importlib.util.spec_from_file_location(f"scripts.{module_name}", script_path)
+            if spec is not None and spec.loader is not None:
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                return mod
+        raise ImportError(
+            f"Helper script 'scripts.{module_name}' is only available from a source checkout."
+        ) from first_exc
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -89,7 +142,7 @@ def _build_parser() -> argparse.ArgumentParser:
     c.add_argument("--source", help="Filter: facts from this source.")
     c.add_argument("--reliability",
                    choices=["UNVERIFIED", "POSSIBLY_TRUE", "LIKELY_TRUE", "VERIFIED"],
-                   help="Filter: minimum reliability label.")
+                   help="Filter: reliability label.")
     c.add_argument("--category", help="Filter: facts in this category.")
     c.add_argument("--min-quality", type=int, help="Filter: minimum quality score.")
     c.add_argument("--limit", type=int, default=20, help="Max rows to print (default 20).")
@@ -279,7 +332,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ct.add_argument("--graph-db", default="graph_db", help="Path to the Kùzu graph database.")
     ct.add_argument("--backend", choices=["ollama", "llama-cpp", "openai", "gemini", "none"], default="gemini",
                     help="Critique backend (default: gemini, use 'none' for offline rule-based heuristics).")
-    ct.add_argument("--model", default="gemini-1.5-flash", help="Critic model name.")
+    ct.add_argument("--model", default="gemini-2.0-flash", help="Critic model name.")
     ct.add_argument("--store", default=None, help="Knowledge store directory (instead of graph-db).")
 
     cs = sub.add_parser("compile-sft",
@@ -421,9 +474,10 @@ def _make_filter(name: str, max_object_len: int) -> Optional[FactQualityFilter]:
 
 
 def _cmd_distill(args) -> int:
-    import os
     if not os.path.isfile(args.input):
         print(f"error: input file not found: {args.input}", file=sys.stderr)
+        return 2
+    if not _validate_split(args.split):
         return 2
 
     reliability = _RELIABILITY[args.min_reliability]
@@ -478,29 +532,24 @@ def _cmd_distill(args) -> int:
         from .export import budget_records
         records = budget_records(records, args.max_tokens)
 
-    def _write(path, lines):
-        with open(path, "w", encoding="utf-8") as fh:
-            for ln in lines:
-                fh.write(ln + "\n")
-
     # Optional train/val split.
     if args.split is not None:
         from .export import split_records
         train, val = split_records(records, ratio=args.split, seed=args.seed)
         val_path = args.output + ".val"
-        _write(args.output, train)
-        _write(val_path, val)
+        _write_lines_atomic(args.output, train)
+        _write_lines_atomic(val_path, val)
         print(
             f"Extracted {len(ids)} raw facts; wrote {len(train)} train -> "
             f"{args.output} and {len(val)} val -> {val_path}."
         )
     else:
-        _write(args.output, records)
-        stats = distiller.stats()
+        _write_lines_atomic(args.output, records)
+        reduction_ratio = 0.0 if not ids else 1.0 - (len(selected) / len(ids))
         print(
             f"Extracted {len(ids)} raw facts; "
             f"wrote {len(records)} {args.format} pairs to {args.output} "
-            f"(reduction ratio {stats['reduction_ratio']:.2f})."
+            f"(reduction ratio {reduction_ratio:.2f})."
         )
     return 0
 
@@ -582,91 +631,86 @@ def _cmd_drop(args) -> int:
 
 
 def _cmd_catalog(args) -> int:
-    import os
     from .store import KnowledgeStore
     from .catalog import Catalog
     if not os.path.isdir(args.store):
         print(f"error: store not found: {args.store}", file=sys.stderr)
         return 2
     store = KnowledgeStore(args.store)
-    cat = Catalog(os.path.join(args.store, "catalog.db"))
-    cat.rebuild(store)
+    with Catalog(os.path.join(args.store, "catalog.db")) as cat:
+        cat.rebuild(store)
 
-    any_filter = any([args.source, args.reliability, args.category, args.min_quality])
-    if any_filter:
-        rows = cat.query(source=args.source, reliability=args.reliability,
-                         category=args.category, min_quality=args.min_quality,
-                         limit=args.limit)
-        print(f"{len(rows)} matching facts (showing up to {args.limit}):")
-        for r in rows:
-            print(f"  [{r['reliability']}/{r['quality']}] {r['statement']}  <- {r['source']}")
-    else:
-        s = cat.stats()
-        print("Knowledge store catalog")
-        print(f"  total facts: {s['total_facts']}")
-        print(f"  total drops: {s['total_drops']}")
-        print(f"  sources:     {s['sources']}")
-        print("  by reliability:")
-        for rel, n in sorted(s["by_reliability"].items()):
-            print(f"    {rel}: {n}")
-    cat.close()
+        any_filter = any(
+            x is not None
+            for x in (args.source, args.reliability, args.category, args.min_quality)
+        )
+        if any_filter:
+            rows = cat.query(source=args.source, reliability=args.reliability,
+                             category=args.category, min_quality=args.min_quality,
+                             limit=args.limit)
+            print(f"{len(rows)} matching facts (showing up to {args.limit}):")
+            for r in rows:
+                print(f"  [{r['reliability']}/{r['quality']}] {r['statement']}  <- {r['source']}")
+        else:
+            s = cat.stats()
+            print("Knowledge store catalog")
+            print(f"  total facts: {s['total_facts']}")
+            print(f"  total drops: {s['total_drops']}")
+            print(f"  sources:     {s['sources']}")
+            print("  by reliability:")
+            for rel, n in sorted(s["by_reliability"].items()):
+                print(f"    {rel}: {n}")
     return 0
 
 
 def _row_to_record(row, fmt):
     """Turn a catalog row into a serialized record line for the given format."""
-    import json as _json
     q = row.get("question") or f"Tell me a fact about {row.get('category') or 'General'}."
     a = row.get("answer") or row.get("statement") or ""
     if fmt == "chat":
-        return _json.dumps({"messages": [
+        return json.dumps({"messages": [
             {"role": "user", "content": q},
             {"role": "assistant", "content": a},
         ]}, ensure_ascii=False)
     if fmt == "instruction":
-        return _json.dumps({"instruction": q, "input": "", "output": a}, ensure_ascii=False)
+        return json.dumps({"instruction": q, "input": "", "output": a}, ensure_ascii=False)
     # text
     return f"- {row.get('statement') or a}"
 
 
 def _cmd_compile(args) -> int:
-    import os
     from .store import KnowledgeStore
     from .catalog import Catalog
     if not os.path.isdir(args.store):
         print(f"error: store not found: {args.store}", file=sys.stderr)
         return 2
+    if not _validate_split(args.split):
+        return 2
 
     store = KnowledgeStore(args.store)
-    cat = Catalog(os.path.join(args.store, "catalog.db"))
-    cat.rebuild(store)
+    with Catalog(os.path.join(args.store, "catalog.db")) as cat:
+        cat.rebuild(store)
 
-    rows = cat.query(source=args.source, reliability=args.reliability,
-                     category=args.category, min_quality=args.min_quality)
-    records = [_row_to_record(r, args.format) for r in rows]
-    drops_used = sorted({r["drop_id"] for r in rows})
-    cat.close()
+        rows = cat.query(source=args.source, reliability=args.reliability,
+                         category=args.category, min_quality=args.min_quality)
+        records = [_row_to_record(r, args.format) for r in rows]
+        drops_used = sorted({r["drop_id"] for r in rows})
 
     if args.max_tokens is not None:
         from .export import budget_records
         records = budget_records(records, args.max_tokens)
 
-    def _write(path, lines):
-        with open(path, "w", encoding="utf-8") as fh:
-            for ln in lines:
-                fh.write(ln + "\n")
-
     if args.split is not None:
         from .export import split_records
         train, val = split_records(records, ratio=args.split, seed=args.seed)
-        _write(args.output, train)
-        _write(args.output + ".val", val)
+        _write_lines_atomic(args.output, train)
+        _write_lines_atomic(args.output + ".val", val)
         print(
             f"Compiled {len(records)} facts from {len(drops_used)} drop(s) -> "
             f"{len(train)} train ({args.output}) + {len(val)} val ({args.output}.val)."
         )
     else:
-        _write(args.output, records)
+        _write_lines_atomic(args.output, records)
         print(
             f"Compiled {len(records)} facts from {len(drops_used)} drop(s) -> "
             f"{args.output} (format {args.format})."
@@ -675,7 +719,6 @@ def _cmd_compile(args) -> int:
 
 
 def _cmd_batch(args) -> int:
-    import os
     from .factory import batch_drop, scan_folder, format_report
     sources = list(args.inputs or [])
     if args.folder:
@@ -689,7 +732,7 @@ def _cmd_batch(args) -> int:
     report = batch_drop(sources, args.store, filter_name=args.filter,
                         coref=args.coref, engine=args.engine)
     print(format_report(report))
-    return 0
+    return 1 if report.get("errors", 0) > 0 else 0
 
 
 def _cmd_lifecycle(args) -> int:
@@ -735,14 +778,21 @@ def _cmd_model_probe(args) -> int:
     store = KnowledgeStore(args.store)
     total_drops = total_facts = skipped = 0
     for model in models:
-        backend = get_backend(
-            args.backend,
-            model=model,
-            host=args.host,
-            model_path=args.model_path,
-            api_key=args.api_key,
-            base_url=args.base_url
-        )
+        try:
+            backend = get_backend(
+                args.backend,
+                model=model,
+                host=args.host,
+                model_path=args.model_path,
+                api_key=args.api_key,
+                base_url=args.base_url
+            )
+        except ImportError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         probe = ModelProbe(backend=backend, model=model)
         for domain in domains:
             outputs = probe.probe_domain(domain, n_prompts=args.n_prompts, seed=args.seed)
@@ -766,12 +816,13 @@ def _cmd_model_probe(args) -> int:
 
 
 def _cmd_model_distill(args) -> int:
-    import os
     from .store import KnowledgeStore
     from .model_distill import ModelKnowledgeDistiller
 
     if not os.path.isdir(args.store):
         print(f"error: store not found: {args.store}", file=sys.stderr)
+        return 2
+    if not _validate_split(args.split):
         return 2
 
     min_rel = args.min_reliability.upper()
@@ -793,26 +844,18 @@ def _cmd_model_distill(args) -> int:
         from .export import budget_records
         records = budget_records(records, args.max_tokens)
 
-    def _write(path, lines):
-        with open(path, "w", encoding="utf-8") as fh:
-            for ln in lines:
-                fh.write(ln + "\n")
-
     if args.manifest:
-        with open(args.manifest, "w", encoding="utf-8") as fh:
-            import json as _json
-            _json.dump(distiller.manifest(os.path.basename(args.output)), fh,
-                       ensure_ascii=False, indent=2)
+        _write_json_atomic(args.manifest, distiller.manifest(os.path.basename(args.output)))
 
     if args.split is not None:
         from .export import split_records
         train, val = split_records(records, ratio=args.split, seed=args.seed)
-        _write(args.output, train)
-        _write(args.output + ".val", val)
+        _write_lines_atomic(args.output, train)
+        _write_lines_atomic(args.output + ".val", val)
         print(f"Distilled {len(records)} corroborated facts -> {len(train)} train "
               f"({args.output}) + {len(val)} val ({args.output}.val).")
     else:
-        _write(args.output, records)
+        _write_lines_atomic(args.output, records)
         m = distiller.manifest()
         print(f"Distilled {len(records)} corroborated facts -> {args.output} "
               f"(VERIFIED={m['verified']}, LIKELY_TRUE={m['likely_true']}, "
@@ -904,9 +947,7 @@ def _cmd_model_eval(args) -> int:
     print(format_report(report))
 
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as fh:
-            import json as _json
-            _json.dump(report, fh, ensure_ascii=False, indent=2)
+        _write_json_atomic(args.output, report)
 
     passed, failures = check_gates(report)
     if failures:
@@ -923,17 +964,11 @@ def _cmd_model_eval(args) -> int:
 
 def _cmd_graph_ingest(args) -> int:
     """Distill corroborated facts from the store and load them into KùzuDB."""
-    import os
     from .store import KnowledgeStore
     from .model_distill import ModelKnowledgeDistiller
     if not os.path.isdir(args.store):
         print(f"error: store not found: {args.store}", file=sys.stderr)
         return 2
-    try:
-        from .graph_store_factory import get_graph_store
-    except ImportError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 3
 
     embedder = None
     if args.embed:
@@ -950,10 +985,19 @@ def _cmd_graph_ingest(args) -> int:
         similarity_threshold=args.similarity, embedder=embedder)
     facts = distiller.select_facts()
 
-    kstore = get_graph_store(args.graph_db)
-    kstore.ingest_facts(facts)
-    print(f"Ingested {len(facts)} facts into Graph DB at {args.graph_db} "
-          f"(graph now has {kstore.count()} facts).")
+    try:
+        from .graph_store_factory import get_graph_store
+        kstore = get_graph_store(args.graph_db)
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    try:
+        kstore.ingest_facts(facts)
+        print(f"Ingested {len(facts)} facts into Graph DB at {args.graph_db} "
+              f"(graph now has {kstore.count()} facts).")
+    finally:
+        kstore.close()
     return 0
 
 
@@ -986,7 +1030,11 @@ def _cmd_model_prep(args) -> int:
 
 def _cmd_train_mlx(args) -> int:
     """Fine-tune a model locally on Apple Silicon using MLX-LM."""
-    from scripts import train_mlx
+    try:
+        train_mlx = _import_script("train_mlx")
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
     argv = [
         "--dataset", args.dataset,
         "--base-model", args.base_model,
@@ -1073,16 +1121,13 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 def _cmd_graph_reason(args) -> int:
     """Execute graph reasoning algorithms on the KùzuDB graph."""
-    import os
-    import sys
-    import json
     try:
         from .graph_store_factory import get_graph_store
+        kstore = get_graph_store(args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    kstore = get_graph_store(args.graph_db)
     try:
         if args.op == "link":
             n_links = kstore.auto_link_relations()
@@ -1091,7 +1136,7 @@ def _cmd_graph_reason(args) -> int:
             contras = kstore.find_contradictions()
             print(f"Found {len(contras)} contradiction(s):")
             for c in contras:
-                print(f"  * Conflict between:")
+                print("  * Conflict between:")
                 print(f"    - Fact A: {c['a_stmt']} [quality: {c['a_qual']}, rel: {c['a_rel']}]")
                 print(f"    - Fact B: {c['b_stmt']} [quality: {c['b_qual']}, rel: {c['b_rel']}]")
         elif args.op == "transitive":
@@ -1115,21 +1160,21 @@ def _cmd_watch_daemon(args) -> int:
     """Start the directory watcher daemon."""
     try:
         from .watcher import WatcherDaemon
+        watcher = WatcherDaemon(
+            watch_dir=args.dir,
+            store_dir=args.store,
+            db_log_path=args.db_log,
+            reliability=args.min_reliability,
+            filter_name=args.filter,
+            coref=args.coref,
+            engine=args.engine,
+            graph_db=args.graph_db,
+            distill_dir=args.distill_dir
+        )
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    watcher = WatcherDaemon(
-        watch_dir=args.dir,
-        store_dir=args.store,
-        db_log_path=args.db_log,
-        reliability=args.min_reliability,
-        filter_name=args.filter,
-        coref=args.coref,
-        engine=args.engine,
-        graph_db=args.graph_db,
-        distill_dir=args.distill_dir
-    )
     try:
         watcher.run()
     except KeyboardInterrupt:
@@ -1139,18 +1184,17 @@ def _cmd_watch_daemon(args) -> int:
 
 def _cmd_consensus(args) -> int:
     """Run extraction with multiple engines and validate consistency."""
-    import os
     if not os.path.isfile(args.input):
         print(f"error: input file not found: {args.input}", file=sys.stderr)
         return 2
 
     try:
         from .consensus import ConsensusEngine
+        engine = ConsensusEngine(store_dir=args.store, graph_db_path=args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    engine = ConsensusEngine(store_dir=args.store, graph_db_path=args.graph_db)
     try:
         result = engine.process_with_consensus(
             file_path=args.input,
@@ -1174,15 +1218,15 @@ def _cmd_train(args) -> int:
     """Run local LoRA training via mlx-lm."""
     try:
         from .train import MLXTrainer
+        trainer = MLXTrainer(
+            model_path=args.model,
+            data_dir=args.data,
+            adapter_path=args.adapter_path
+        )
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    trainer = MLXTrainer(
-        model_path=args.model,
-        data_dir=args.data,
-        adapter_path=args.adapter_path
-    )
     try:
         trainer.train_lora(
             iters=args.iters,
@@ -1202,12 +1246,10 @@ def _cmd_crawl(args) -> int:
         from .model_probe import get_backend
         from .crawler import ModelCrawler
         from .store import KnowledgeStore, Drop, content_hash
+        backend = get_backend(args.backend, model=args.model, model_path=args.model)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
-
-    try:
-        backend = get_backend(args.backend, model=args.model, model_path=args.model)
     except Exception as exc:
         print(f"error instantiating backend: {exc}", file=sys.stderr)
         return 4
@@ -1228,8 +1270,9 @@ def _cmd_crawl(args) -> int:
         store = KnowledgeStore(args.store)
         text_summary = "\n".join(f.get("fact_statement", "") for f in facts)
         src_hash = content_hash(text_summary)
-        
-        drop_id = f"crawl-{args.seed.replace(' ', '_').lower()}-{src_hash[:12]}"
+
+        slug = re.sub(r"[^a-z0-9_-]+", "_", args.seed.lower()).strip("_") or "seed"
+        drop_id = f"crawl-{slug}-{src_hash[:12]}"
         drop = Drop(
             drop_id=drop_id,
             source=f"model-crawl:{args.seed}",
@@ -1250,98 +1293,106 @@ def _cmd_crawl(args) -> int:
 
 def _cmd_critique(args) -> int:
     """Audit and critique facts using a high-capability model backend."""
-    import os
-    import sys
+    if args.store and not os.path.isdir(args.store):
+        print(f"error: store not found: {args.store}", file=sys.stderr)
+        return 2
+
     try:
         from .critique import FactCritic
-        from .graph_store_factory import get_graph_store
         from .store import KnowledgeStore
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    # Load facts
     facts = []
     kstore = None
-    if args.store:
-        store = KnowledgeStore(args.store)
-        facts = list(store.iter_facts())
-        print(f"Loaded {len(facts)} facts from KnowledgeStore '{args.store}'.")
-    else:
-        kstore = get_graph_store(args.graph_db)
-        facts = kstore.query(
-            "MATCH (f:Fact) "
-            "RETURN f.block_id AS block_id, f.statement AS fact_statement, "
-            "f.subject AS subject, f.predicate AS predicate, f.object AS object"
-        )
-        print(f"Loaded {len(facts)} facts from Graph Database '{args.graph_db}'.")
-
-    if not facts:
-        print("No facts found to critique.")
-        if kstore:
-            kstore.close()
-        return 0
-
-    print(f"Auditing facts using backend '{args.backend}' and model '{args.model}'...")
     try:
-        critic = FactCritic(args.backend, model_name=args.model)
-        reports = critic.critique_facts(facts)
-    except Exception as exc:
-        print(f"error instantiating or running critic: {exc}", file=sys.stderr)
-        if kstore:
-            kstore.close()
-        return 4
-
-    flagged = [r for r in reports if not r["is_factual"]]
-    print(f"\nAudit Complete: Flagged {len(flagged)} / {len(reports)} facts as non-factual.")
-    for f in flagged:
-        print(f"  - Flagged: \"{f['statement']}\"")
-        print(f"    Reasoning: {f['reasoning']}")
-
-    if kstore and flagged:
-        print("\nUpdating Kùzu Graph Database with critic feedback...")
-        demote_count = 0
-        for f in flagged:
+        if args.store:
+            store = KnowledgeStore(args.store)
+            facts = list(store.iter_facts())
+            print(f"Loaded {len(facts)} facts from KnowledgeStore '{args.store}'.")
+        else:
             try:
-                kstore.query(
-                    "MATCH (fac:Fact) "
-                    "WHERE fac.block_id = $bid "
-                    "SET fac.reliability = 'UNVERIFIED', fac.quality = 0",
-                    {"bid": f["block_id"]}
-                )
-                demote_count += 1
-            except Exception as exc:
-                print(f"Failed to update fact {f['block_id']}: {exc}", file=sys.stderr)
-        print(f"Successfully demoted {demote_count} facts in the graph database.")
+                from .graph_store_factory import get_graph_store
+                kstore = get_graph_store(args.graph_db)
+            except ImportError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 3
+            facts = kstore.query(
+                "MATCH (f:Fact) "
+                "RETURN f.block_id AS block_id, f.statement AS fact_statement, "
+                "f.subject AS subject, f.predicate AS predicate, f.object AS object"
+            )
+            print(f"Loaded {len(facts)} facts from Graph Database '{args.graph_db}'.")
 
-    if kstore:
-        kstore.close()
+        if not facts:
+            print("No facts found to critique.")
+            return 0
+
+        print(f"Auditing facts using backend '{args.backend}' and model '{args.model}'...")
+        try:
+            critic = FactCritic(args.backend, model_name=args.model)
+            reports = critic.critique_facts(facts)
+        except ImportError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
+        except Exception as exc:
+            print(f"error instantiating or running critic: {exc}", file=sys.stderr)
+            return 4
+
+        flagged = [r for r in reports if not r["is_factual"]]
+        print(f"\nAudit Complete: Flagged {len(flagged)} / {len(reports)} facts as non-factual.")
+        for f in flagged:
+            print(f"  - Flagged: \"{f['statement']}\"")
+            print(f"    Reasoning: {f['reasoning']}")
+
+        if kstore and flagged:
+            print("\nUpdating Kùzu Graph Database with critic feedback...")
+            demote_count = 0
+            for f in flagged:
+                try:
+                    kstore.query(
+                        "MATCH (fac:Fact) "
+                        "WHERE fac.block_id = $bid "
+                        "SET fac.reliability = 'UNVERIFIED', fac.quality = 0",
+                        {"bid": f["block_id"]}
+                    )
+                    demote_count += 1
+                except Exception as exc:
+                    print(f"Failed to update fact {f['block_id']}: {exc}", file=sys.stderr)
+            print(f"Successfully demoted {demote_count} facts in the graph database.")
+    finally:
+        if kstore is not None:
+            kstore.close()
 
     return 0
 
 
 def _cmd_compile_sft(args) -> int:
     """Compile facts into standard SFT instruction training formats."""
-    import os
-    import sys
-    try:
-        from .graph_store_factory import get_graph_store
-        from .store import KnowledgeStore
-    except ImportError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 3
+    if args.store and not os.path.isdir(args.store):
+        print(f"error: store not found: {args.store}", file=sys.stderr)
+        return 2
 
+    from .store import KnowledgeStore
     facts = []
     if args.store:
         store = KnowledgeStore(args.store)
         facts = list(store.iter_facts())
     else:
-        kstore = get_graph_store(args.graph_db)
-        facts = kstore.query(
-            "MATCH (f:Fact) "
-            "RETURN f.statement AS fact_statement, f.subject AS subject"
-        )
-        kstore.close()
+        try:
+            from .graph_store_factory import get_graph_store
+            kstore = get_graph_store(args.graph_db)
+        except ImportError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
+        try:
+            facts = kstore.query(
+                "MATCH (f:Fact) "
+                "RETURN f.statement AS fact_statement, f.subject AS subject"
+            )
+        finally:
+            kstore.close()
 
     if not facts:
         print("No facts found to compile.")
@@ -1353,7 +1404,7 @@ def _cmd_compile_sft(args) -> int:
         subj = f.get("subject") or "General"
         if not statement:
             continue
-            
+
         if args.format == "alpaca":
             compiled.append({
                 "instruction": f"State a verified fact about {subj}.",
@@ -1368,18 +1419,13 @@ def _cmd_compile_sft(args) -> int:
                 ]
             })
         elif args.format == "plain":
-            compiled.append({
-                "text": statement
-            })
+            compiled.append({"text": statement})
 
     try:
-        import json
-        with open(args.output, "w", encoding="utf-8") as fh:
-            if args.output.endswith(".jsonl"):
-                for item in compiled:
-                    fh.write(json.dumps(item) + "\n")
-            else:
-                json.dump(compiled, fh, indent=2)
+        if args.output.endswith(".jsonl"):
+            _write_lines_atomic(args.output, [json.dumps(item) for item in compiled])
+        else:
+            _write_json_atomic(args.output, compiled)
         print(f"Successfully compiled {len(compiled)} facts into SFT format '{args.format}' at '{args.output}'.")
     except Exception as exc:
         print(f"error writing SFT dataset: {exc}", file=sys.stderr)
@@ -1390,17 +1436,15 @@ def _cmd_compile_sft(args) -> int:
 
 def _cmd_audit_store(args) -> int:
     """Perform a diagnostic quality audit on the knowledge store."""
-    import os
-    import sys
     from .store import KnowledgeStore
-    
+
     if not os.path.isdir(args.store):
         print(f"error: store not found: {args.store}", file=sys.stderr)
         return 2
-        
+
     store = KnowledgeStore(args.store)
     report = store.audit_summary()
-    
+
     print("=== Knowledge Store Audit ===")
     print(f"Total Drops: {report['total_drops']}")
     print(f"Total Facts: {report['total_facts']}")
@@ -1414,15 +1458,14 @@ def _cmd_audit_store(args) -> int:
 
 def _cmd_resolve_entities(args) -> int:
     """Perform entity resolution and merge synonym nodes in the Kùzu graph."""
-    import sys
     try:
         from .graph_store_factory import get_graph_store
         from .entity_resolution import resolve_and_merge_entities
+        kstore = get_graph_store(args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    kstore = get_graph_store(args.graph_db)
     try:
         res = resolve_and_merge_entities(kstore, threshold=args.threshold)
         print("Entity Resolution Complete:")
@@ -1435,24 +1478,25 @@ def _cmd_resolve_entities(args) -> int:
 
 def _cmd_compile_graph_instructions(args) -> int:
     """Compile multi-hop relationship chains from the graph into SFT instructions."""
-    import sys
     try:
         from .graph_store_factory import get_graph_store
-        from .graph_compiler import compile_subgraph_instructions, save_compiled_instructions
+        from .graph_compiler import (
+            compile_contradiction_instructions,
+            compile_subgraph_instructions,
+            save_compiled_instructions,
+        )
+        kstore = get_graph_store(args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    kstore = get_graph_store(args.graph_db)
     try:
-        from .graph_compiler import compile_contradiction_instructions
-        
         instructions = compile_subgraph_instructions(kstore, max_chains=args.max_chains)
         if args.include_contradictions:
             contra_instructions = compile_contradiction_instructions(kstore)
             instructions.extend(contra_instructions)
             print(f"Added {len(contra_instructions)} contradiction resolution instruction(s).")
-            
+
         save_compiled_instructions(instructions, args.output)
         print(f"Successfully compiled {len(instructions)} total instructions to {args.output}")
     finally:
@@ -1462,26 +1506,23 @@ def _cmd_compile_graph_instructions(args) -> int:
 
 def _cmd_distill_ontology(args) -> int:
     """Distill the high-level taxonomy and relation schema from the graph."""
-    import sys
-    import json
     try:
         from .graph_store_factory import get_graph_store
         from .ontology import OntologyDistiller
+        kstore = get_graph_store(args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    kstore = get_graph_store(args.graph_db)
     try:
         distiller = OntologyDistiller(kstore)
         summary = distiller.distill_all()
         taxonomy = summary["taxonomy"]
         semantic_types = summary["semantic_types"]
         schema = summary["relation_schema"]
-        
-        with open(args.output, "w", encoding="utf-8") as fh:
-            json.dump(summary, fh, indent=2)
-            
+
+        _write_json_atomic(args.output, summary)
+
         print("Ontology Distillation Complete:")
         print(f"  - Extracted {len(taxonomy)} taxonomic hierarchies.")
         print(f"  - Categorized {len(semantic_types)} concepts.")
@@ -1494,43 +1535,40 @@ def _cmd_distill_ontology(args) -> int:
 
 def _cmd_query_graph(args) -> int:
     """Run Graph-RAG retrieval over the store and print a premium styled output."""
-    import sys
-    import json
     try:
         from .graph_store_factory import get_graph_store
         from .rag import GraphRAGRetriever
+        kstore = get_graph_store(args.graph_db)
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 3
 
-    kstore = get_graph_store(args.graph_db)
     try:
         retriever = GraphRAGRetriever(store=kstore)
         results = retriever.retrieve(args.query, top_k=args.top_k, hops=args.hops)
-        
+
         if args.format == "json":
             print(json.dumps(results, indent=2))
         else:
-            # Color-coded Markdown rendering in terminal
             print("\033[1;33m" + "=" * 60 + "\033[0m")
-            print(f"\033[1;36m🔍 Graph-RAG Multi-Hop Path Retrieval\033[0m")
+            print("\033[1;36m🔍 Graph-RAG Multi-Hop Path Retrieval\033[0m")
             print(f"\033[1;30mQuery:\033[0m \"{args.query}\"")
             print("\033[1;33m" + "=" * 60 + "\033[0m")
-            
+
             if not results:
                 print("\033[1;31mNo matching facts found in the knowledge graph.\033[0m")
                 return 0
-                
+
             print(f"\033[1;32mFound {len(results)} relevant facts:\033[0m")
             for idx, r in enumerate(results, 1):
                 reliability = r.get("reliability", "UNVERIFIED")
                 color = "\033[1;32m" if reliability == "VERIFIED" else "\033[1;34m"
                 print(f"  \033[1;35m{idx}.\033[0m \033[1m{r['subject']}\033[0m {r['predicate']} \033[1m{r['object']}\033[0m")
                 print(f"     \033[3m\"{r['statement']}\"\033[0m (Reliability: {color}{reliability}\033[0m)")
-                
+
             print("\033[1;33m" + "-" * 60 + "\033[0m")
             print("\033[1;36mCompiled LLM Prompt Context:\033[0m")
-            print(retriever.format_context(args.query, top_k=args.top_k, hops=args.hops))
+            print(retriever.format_facts(results))
             print("\033[1;33m" + "=" * 60 + "\033[0m")
     finally:
         kstore.close()
@@ -1539,7 +1577,11 @@ def _cmd_query_graph(args) -> int:
 
 def _cmd_train_sft(args) -> int:
     """Run supervised fine-tuning using PyTorch, PEFT, and TRL."""
-    from scripts import train_sft
+    try:
+        train_sft = _import_script("train_sft")
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
     argv = [
         "--dataset", args.dataset,
         "--base-model", args.base_model,
@@ -1559,22 +1601,33 @@ def _cmd_train_sft(args) -> int:
 
 def _cmd_test_drive(args) -> int:
     """Run a quick end-to-end smoke test of the entire system."""
-    from scripts import test_drive
     try:
-        test_drive.main()
-        if args.crawl:
-            from scripts import download_and_crawl
-            download_and_crawl.main()
+        test_drive = _import_script("test_drive")
+        download_and_crawl = _import_script("download_and_crawl") if args.crawl else None
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+    try:
+        rc = test_drive.main()
+        if isinstance(rc, int) and rc != 0:
+            return rc
+        if download_and_crawl is not None:
+            rc2 = download_and_crawl.main()
+            if isinstance(rc2, int) and rc2 != 0:
+                return rc2
         return 0
     except Exception as exc:
-        import sys
         print(f"Error running test drive: {exc}", file=sys.stderr)
         return 1
 
 
 def _cmd_run_suite(args) -> int:
     """Run the test suite partitioned by stages."""
-    from scripts import run_suite
+    try:
+        run_suite = _import_script("run_suite")
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
     argv = ["--stage", args.stage]
     if args.verbose:
         argv.append("--verbose")
@@ -1582,18 +1635,23 @@ def _cmd_run_suite(args) -> int:
         run_suite.main(argv)
         return 0
     except SystemExit as exc:
-        # SystemExit passes the returncode of pytest
-        return exc.code
+        if exc.code is None:
+            return 0
+        return exc.code if isinstance(exc.code, int) else 1
     except Exception as exc:
-        import sys
         print(f"Error running test suite stage: {exc}", file=sys.stderr)
         return 1
 
 
 def _cmd_skill_install(args) -> int:
     """Install and verify the Hermes coding skill manifest."""
-    from scripts import mirror_skill, smoke_skill
-    if not args.verify_only:
+    try:
+        smoke_skill = _import_script("smoke_skill")
+        mirror_skill = None if args.verify_only else _import_script("mirror_skill")
+    except ImportError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+    if mirror_skill is not None:
         rc = mirror_skill.main()
         if rc != 0:
             return rc

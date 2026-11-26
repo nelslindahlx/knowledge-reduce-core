@@ -6,10 +6,7 @@ knowledge-reduce-core graph-RAG retrievers and HTTP MCP server into
 standard LLM agent frameworks.
 """
 
-import os
 import json
-import requests
-from typing import List, Dict, Any
 
 # =====================================================================
 # 1. LangChain Custom Tool Example
@@ -29,22 +26,24 @@ try:
         Returns:
             A JSON-formatted string of matching fact statements and ratings.
         """
-        # Call the serve-mcp FastAPI endpoint
-        url = "http://127.0.0.1:8080/query"
+        import urllib.request
+        import urllib.error
+
+        # Call the serve-mcp HTTP endpoint (/api/rag_retrieve).
+        url = "http://127.0.0.1:8080/api/rag_retrieve"
         headers = {
             "Authorization": "Bearer sample_token",
-            "X-Workspace-Id": workspace_id
+            "Content-Type": "application/json",
+            "X-Workspace-Id": workspace_id,
         }
-        payload = {"query": query}
-        
+        payload = json.dumps({"query": query}).encode("utf-8")
+
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
+            req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+                data = json.loads(resp.read().decode("utf-8"))
                 facts = data.get("facts", [])
                 return json.dumps(facts, indent=2)
-            else:
-                return f"Error: MCP server returned status code {response.status_code}"
         except Exception as exc:
             return f"Error connecting to MCP server: {exc}"
 

@@ -24,29 +24,33 @@ def classify_stages(all_files):
 
     stage1_files = {
         "test_core.py", "test_schemas.py", "test_store.py", "test_factory.py",
-        "test_qa.py", "test_quality.py", "test_distillation_io.py",
+        "test_qa.py", "test_quality.py", "test_distillation.py", "test_distillation_io.py",
+        "test_export.py", "test_audit.py", "test_evaluation.py",
         "test_governance_and_invariants.py", "test_skill.py",
     }
-    
+
     stage2_files = {
         "test_ingest.py", "test_extraction.py", "test_extractor_base.py",
-        "test_coref.py", "test_semantic.py", "test_backends.py"
+        "test_coref.py", "test_semantic.py", "test_backends.py",
+        "test_enhanced.py", "test_utils.py", "test_blockchain.py",
+        "test_streaming.py", "test_sharding.py", "test_vector_kg.py",
     }
-    
+
     stage3_files = {
         "test_catalog.py", "test_kuzu_store.py", "test_graph_tool.py",
-        "test_lifecycle.py", "test_training_prep.py", "test_export.py",
-        "test_mcp_server.py", "test_reasoning.py", "test_watcher.py",
-        "test_rag.py", "test_consensus.py", "test_train_wrapper.py",
-        "test_crawler.py", "test_compile_sft.py", "test_hardening.py",
-        "test_analysis.py", "test_visualization.py", "test_vector_index.py",
-        "test_neo4j_store.py", "test_entity_resolution.py", "test_ontology.py"
+        "test_lifecycle.py", "test_training_prep.py", "test_mcp_server.py",
+        "test_reasoning.py", "test_watcher.py", "test_rag.py",
+        "test_consensus.py", "test_train_wrapper.py", "test_crawler.py",
+        "test_compile_sft.py", "test_hardening.py", "test_analysis.py",
+        "test_visualization.py", "test_vector_index.py", "test_neo4j_store.py",
+        "test_entity_resolution.py", "test_ontology.py", "test_graph_compiler.py",
     }
-    
+
     stage4_files = {
-        "test_model_probe.py", "test_model_drop.py", "test_model_distill.py",
-        "test_model_eval.py", "test_cross_model.py", "test_embeddings.py",
-        "test_cli.py", "test_graveyard.py", "test_critique.py"
+        "test_model_probe.py", "test_probe_templates.py", "test_model_drop.py",
+        "test_model_distill.py", "test_model_eval.py", "test_cross_model.py",
+        "test_weighted_consensus.py", "test_embeddings.py", "test_cli.py",
+        "test_graveyard.py", "test_critique.py",
     }
 
     for filename, rel_path in all_files:
@@ -109,9 +113,10 @@ def main(argv=None):
     else:
         cmd.append("-q")
         
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cmd.extend(files_to_run)
 
-    res = subprocess.run(cmd)
+    res = subprocess.run(cmd, cwd=project_root)
     sys.exit(res.returncode)
 
 if __name__ == "__main__":

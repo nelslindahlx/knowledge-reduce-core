@@ -34,6 +34,7 @@ happen inside main() so the repo stays importable without the training deps.
 
 import argparse
 import json
+import os
 import sys
 
 
@@ -55,19 +56,41 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def _load_chat_dataset(path: str):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Dataset file not found: {path}")
     rows = []
     with open(path, "r", encoding="utf-8") as fh:
-        for line in fh:
+        for idx, line in enumerate(fh, 1):
             line = line.strip()
-            if line:
-                rows.append(json.loads(line))
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Line {idx} in {path} is not valid JSON: {exc}") from exc
+            messages = data.get("messages")
+            if not isinstance(messages, list):
+                raise ValueError(f"Line {idx} in {path} must contain a 'messages' list.")
+            for msg_idx, msg in enumerate(messages):
+                if not isinstance(msg, dict) or "role" not in msg or "content" not in msg:
+                    raise ValueError(
+                        f"Line {idx} in {path}, message {msg_idx} must contain 'role' and 'content'."
+                    )
+            rows.append(data)
+    if not rows:
+        raise ValueError(f"Dataset {path} contains no records.")
     return rows
 
 
 def main(argv=None) -> int:
     args = build_arg_parser().parse_args(argv)
 
-    rows = _load_chat_dataset(args.dataset)
+    try:
+        rows = _load_chat_dataset(args.dataset)
+    except Exception as exc:
+        print(f"Error validating dataset: {exc}", file=sys.stderr)
+        return 1
+
     print(f"Dataset: {len(rows)} chat records from {args.dataset}")
     print(f"Base model: {args.base_model}")
     print(f"LoRA: r={args.lora_r} alpha={args.lora_alpha} | "
@@ -107,12 +130,13 @@ def main(argv=None) -> int:
         bias="none", task_type="CAUSAL_LM",
         target_modules=["q_proj", "k_proj", "v_proj", "o_proj"])
 
+    use_bf16 = bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
     training_args = TrainingArguments(
         output_dir=args.output_dir, num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         gradient_accumulation_steps=args.grad_accum,
         learning_rate=args.lr, logging_steps=10, save_strategy="epoch",
-        bf16=True, report_to="none")
+        bf16=use_bf16, report_to="none")
 
     trainer = SFTTrainer(
         model=model, args=training_args, train_dataset=ds,
