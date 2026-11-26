@@ -56,15 +56,15 @@ def _load_and_validate_dataset(path: str) -> List[Dict[str, Any]]:
             try:
                 data = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise ValueError(f"Line {idx} in {path} is not valid JSON: {exc}")
-                
+                raise ValueError(f"Line {idx} in {path} is not valid JSON: {exc}") from exc
+
             if "messages" not in data:
                 raise ValueError(f"Line {idx} in {path} is missing 'messages' key.")
-                
+
             messages = data["messages"]
             if not isinstance(messages, list):
                 raise ValueError(f"Line {idx} in {path} 'messages' must be a list.")
-                
+
             for msg_idx, msg in enumerate(messages):
                 if not isinstance(msg, dict) or "role" not in msg or "content" not in msg:
                     raise ValueError(
@@ -72,6 +72,8 @@ def _load_and_validate_dataset(path: str) -> List[Dict[str, Any]]:
                         f"'role' and 'content' keys."
                     )
             rows.append(data)
+    if not rows:
+        raise ValueError(f"Dataset {path} contains no records.")
     return rows
 
 
@@ -106,7 +108,7 @@ def main(argv=None) -> int:
     if args.dry_run:
         print("\n[dry-run] Verification complete! The dataset is valid.")
         print("[dry-run] If running, the system will execute:")
-        print(f"  python3 -m mlx_lm.lora \\")
+        print(f"  {sys.executable} -m mlx_lm.lora \\")
         print(f"    --model {args.base_model} \\")
         print(f"    --data <temp_data_dir> \\")
         print(f"    --train \\")

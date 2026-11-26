@@ -179,5 +179,20 @@ During Phase 4 (`store.py`, `lifecycle.py`, `semantic.py`, `enhanced.py`, `utils
 * Prefer explicit per-instance dict caches cleared unconditionally on writes over `@lru_cache` on mutable stateful classes.
 * When writing generator-style corpus maintenance (`reextract_store`, `optimize_shards`), explicitly skip or replace derived artifacts so repeat runs remain idempotent.
 
+---
+
+## 17. Packaging CLI Subcommands, Lazy Feature Discovery & Zero-Leftover Examples
+
+### Context
+During Phase 5 (`cli.py`, `scripts/*.py`, `examples/*.py`, `tests/conftest.py`), several packaging and test-hygiene gaps emerged:
+1. Importing optional modules via `importlib.import_module()` inside `tests/conftest.py` eagerly triggered third-party deprecation warnings at pytest collection time, while CLI subcommands calling `get_graph_store()` outside `try ... except ImportError:` masked missing `[graph]` extras with unhandled tracebacks.
+2. Calling `distiller.stats()` after `select_facts()` and `retriever.format_context()` after `retriever.retrieve()` ran extraction/search twice per CLI command, and falsy `any([..., args.min_quality])` bypassed `--min-quality 0`.
+3. Example scripts and `scripts/test_drive.py` wrote `output/` and store artifacts into the repository working directory unless guarded by temporary directories.
+
+### Lesson Learned
+* Use `importlib.util.find_spec()` in pytest fixture probing (`tests/conftest.py`) so skipping missing extras has zero import side effects.
+* Wrap both optional module imports AND factory/store constructors inside `try ... except ImportError` in CLI subcommands, and always check `is not None` for numeric CLI filters (`0` is valid!).
+* Default demo/example scripts and CLI smoke scripts to `tempfile.TemporaryDirectory()` (with an explicit optional `--output-dir` override) and `Agg` Matplotlib backend so running every example end-to-end leaves `git status` clean.
+
 
 

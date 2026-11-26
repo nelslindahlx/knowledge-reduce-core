@@ -369,3 +369,137 @@ def test_skill_install_cli(monkeypatch):
             assert rc == 0
             mock_mirror.assert_not_called()
             mock_smoke.assert_called_once()
+
+
+def test_catalog_min_quality_zero_triggers_query_mode(tmp_path, sample_text, capsys):
+    store = tmp_path / "store"
+    main(["drop", str(sample_text), "--store", str(store)])
+    capsys.readouterr()
+    rc = main(["catalog", "--store", str(store), "--min-quality", "0"])
+    assert rc == 0
+    out = capsys.readouterr().out.lower()
+    assert "matching facts" in out
+
+
+def test_invalid_split_returns_exit_code_2(tmp_path, sample_text):
+    store = tmp_path / "store"
+    main(["drop", str(sample_text), "--store", str(store)])
+    assert main(["distill", str(sample_text), "-o", str(tmp_path / "d.jsonl"), "--split", "1.5"]) == 2
+    assert main(["compile", "-o", str(tmp_path / "c.jsonl"), "--store", str(store), "--split", "-0.1"]) == 2
+
+    mstore = tmp_path / "mstore"
+    _seed_model_store(mstore)
+    assert main(["model-distill", "-o", str(tmp_path / "m.jsonl"), "--store", str(mstore), "--split", "2.0"]) == 2
+
+
+def test_query_graph_calls_retrieve_once_and_supports_json(tmp_path, monkeypatch, capsys):
+    from unittest.mock import MagicMock
+    mock_store = MagicMock()
+    mock_store.count.return_value = 1
+    mock_store.query.return_value = [
+        {"block_id": "b1", "statement": "Mitochondria produce ATP.", "subject": "Mitochondria",
+         "predicate": "produce", "object": "ATP", "reliability": "VERIFIED"}
+    ]
+    monkeypatch.setattr("knowledge_graph_pkg.graph_store_factory.get_graph_store", lambda path: mock_store)
+
+    # Spy on GraphRAGRetriever.retrieve to confirm single invocation in markdown mode
+    from knowledge_graph_pkg.rag import GraphRAGRetriever
+    orig_retrieve = GraphRAGRetriever.retrieve
+    call_count = 0
+
+    def counting_retrieve(self, *a, **kw):
+        nonlocal call_count
+        call_count += 1
+        return orig_retrieve(self, *a, **kw)
+
+    monkeypatch.setattr(GraphRAGRetriever, "retrieve", counting_retrieve)
+    assert main(["query-graph", "Mitochondria", "--graph-db", str(tmp_path / "db")]) == 0
+    assert call_count == 1
+    assert mock_store.close.call_count == 1
+
+    capsys.readouterr()
+    assert main(["query-graph", "Mitochondria", "--graph-db", str(tmp_path / "db"), "--format", "json"]) == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert len(parsed) == 1
+
+
+def test_critique_missing_store_and_offline_heuristics(tmp_path, sample_text):
+    assert main(["critique", "--store", str(tmp_path / "missing"), "--backend", "none"]) == 2
+
+    store = tmp_path / "store"
+    main(["drop", str(sample_text), "--store", str(store)])
+    assert main(["critique", "--store", str(store), "--backend", "none"]) == 0
+
+
+def test_batch_missing_file_returns_nonzero(tmp_path):
+    rc = main(["batch", str(tmp_path / "does_not_exist.txt"), "--store", str(tmp_path / "store")])
+    assert rc == 1
+
+
+def test_model_prep_and_training_dry_runs(tmp_path, sample_text, capsys):
+    # Missing input -> exit 2
+    assert main(["model-prep", str(tmp_path / "missing.jsonl"), "-o", str(tmp_path / "out.jsonl")]) == 2
+
+    raw = tmp_path / "raw.jsonl"
+    raw.write_text(
+        json.dumps({"messages": [{"role": "user", "content": "Q?"}, {"role": "assistant", "content": "A."}],
+                    "metadata": {"reliability": "VERIFIED"}}) + "\n",
+        encoding="utf-8",
+    )
+    prepped = tmp_path / "prepped.jsonl"
+    assert main(["model-prep", str(raw), "-o", str(prepped), "--stats"]) == 0
+    assert prepped.exists()
+
+    assert main(["train-mlx", "--dataset", str(prepped), "--dry-run"]) == 0
+    assert main(["train-sft", "--dataset", str(prepped), "--dry-run"]) == 0
+
+    empty = tmp_path / "empty.jsonl"
+    empty.write_text("", encoding="utf-8")
+    assert main(["train-mlx", "--dataset", str(empty), "--dry-run"]) == 1
+    assert main(["train-sft", "--dataset", str(empty), "--dry-run"]) == 1
+
+
+def test_import_script_missing_returns_3(monkeypatch):
+    from knowledge_graph_pkg import cli as cli_mod
+
+    def _boom(_name):
+        raise ImportError("no checkout")
+
+    monkeypatch.setattr(cli_mod, "_import_script", _boom)
+    assert main(["test-drive"]) == 3
+    assert main(["run-suite"]) == 3
+    assert main(["skill-install"]) == 3
+
+
+@pytest.mark.require_kuzu
+def test_kuzu_graph_cli_subcommands_end_to_end(tmp_path):
+    store_dir = tmp_path / "mstore"
+    _seed_model_store(store_dir)
+    db_path = str(tmp_path / "kdb")
+
+    assert main(["graph-ingest", "--store", str(store_dir), "--graph-db", db_path, "--min-agreement", "2"]) == 0
+    assert main(["graph-reason", "--graph-db", db_path, "--op", "link"]) == 0
+    assert main(["graph-reason", "--graph-db", db_path, "--op", "contradictions"]) == 0
+    assert main(["graph-reason", "--graph-db", db_path, "--op", "transitive"]) == 0
+    assert main(["graph-reason", "--graph-db", db_path, "--op", "validate"]) == 0
+    assert main(["resolve-entities", "--graph-db", db_path]) == 0
+
+    inst_out = str(tmp_path / "instructions.jsonl")
+    assert main(["compile-graph-instructions", "--graph-db", db_path, "-o", inst_out, "--include-contradictions"]) == 0
+    assert Path(inst_out).exists()
+
+    onto_out = str(tmp_path / "ontology.json")
+    assert main(["distill-ontology", "--graph-db", db_path, "-o", onto_out]) == 0
+    assert Path(onto_out).exists()
+
+
+def test_run_suite_classify_stages_maps_all_test_files():
+    from scripts.run_suite import classify_stages, get_test_files
+
+    all_files = get_test_files()
+    stages = classify_stages(all_files)
+    mapped_all = [p for paths in stages.values() for p in paths]
+    assert len(mapped_all) == len(all_files)
+    # Every newly added Cluster B / suite file is explicitly categorized without overlap
+    assert "tests/test_blockchain.py" in stages["2"]
+    assert "tests/test_cli.py" in stages["4"]

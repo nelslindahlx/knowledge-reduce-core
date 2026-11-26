@@ -4,9 +4,11 @@ Example script demonstrating advanced usage of the KnowledgeGraph package.
 This script shows how to create a knowledge graph, perform analysis,
 visualize the graph, and use utility functions for import/export.
 """
+import argparse
+from contextlib import nullcontext
 from datetime import datetime
 import os
-import matplotlib.pyplot as plt
+import tempfile
 from knowledge_graph_pkg import KnowledgeGraph
 from knowledge_graph_pkg.core import ReliabilityRating
 from knowledge_graph_pkg.analysis import KnowledgeGraphAnalyzer
@@ -18,7 +20,8 @@ from knowledge_graph_pkg.visualization import (
 )
 from knowledge_graph_pkg.utils import export_to_json, filter_facts_by_reliability
 
-def main():
+
+def main(output_dir: str = None):
     # Create a new knowledge graph
     print("Creating a new knowledge graph with sample data...")
     kg = KnowledgeGraph()
@@ -186,42 +189,56 @@ def main():
         print(f"    * {kg.get_fact(fact1)['fact_statement']}")
         print(f"    * {kg.get_fact(fact2)['fact_statement']}")
     
-    # Visualize the knowledge graph
-    print("\nVisualizing knowledge graph...")
-    fig = plot_knowledge_graph(kg.graph, title="Solar System Knowledge Graph")
-    
-    # Save the visualization
-    output_dir = "output"
-    os.makedirs(output_dir, exist_ok=True)
-    fig.savefig(os.path.join(output_dir, "knowledge_graph.png"))
-    plt.close(fig)
-    
-    # Plot reliability distribution
-    fig2 = plot_reliability_distribution(kg.graph)
-    fig2.savefig(os.path.join(output_dir, "reliability_distribution.png"))
-    plt.close(fig2)
-    
-    # Get graph statistics
-    stats = get_graph_statistics(kg.graph)
-    print("\nGraph statistics:")
-    for key, value in stats.items():
-        print(f"  - {key}: {value}")
-    
-    # Filter facts by reliability
-    verified_kg = filter_facts_by_reliability(kg, ReliabilityRating.VERIFIED)
-    print(f"\nFiltered to only VERIFIED facts: {len(verified_kg.graph.nodes)} facts remaining")
-    
-    # Export to JSON
-    json_file = os.path.join(output_dir, "knowledge_graph.json")
-    export_to_json(kg, json_file)
-    print(f"\nExported knowledge graph to {json_file}")
-    
-    # Export to GEXF for visualization in tools like Gephi
-    gexf_file = os.path.join(output_dir, "knowledge_graph.gexf")
-    export_to_gexf(kg.graph, gexf_file)
-    print(f"Exported knowledge graph to {gexf_file}")
-    
+    ctx = (
+        tempfile.TemporaryDirectory(prefix="kr_advanced_example_")
+        if output_dir is None
+        else nullcontext(output_dir)
+    )
+    with ctx as resolved_out:
+        os.makedirs(resolved_out, exist_ok=True)
+
+        # Visualize the knowledge graph if matplotlib is installed (headless Agg).
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            print("\nVisualizing knowledge graph...")
+            fig = plot_knowledge_graph(kg.graph, title="Solar System Knowledge Graph")
+            fig.savefig(os.path.join(resolved_out, "knowledge_graph.png"))
+            plt.close(fig)
+
+            fig2 = plot_reliability_distribution(kg.graph)
+            fig2.savefig(os.path.join(resolved_out, "reliability_distribution.png"))
+            plt.close(fig2)
+        except ImportError:
+            print("\nmatplotlib not installed; skipping image plots.")
+
+        # Get graph statistics
+        stats = get_graph_statistics(kg.graph)
+        print("\nGraph statistics:")
+        for key, value in stats.items():
+            print(f"  - {key}: {value}")
+
+        # Filter facts by reliability
+        verified_kg = filter_facts_by_reliability(kg, ReliabilityRating.VERIFIED)
+        print(f"\nFiltered to only VERIFIED facts: {len(verified_kg.graph.nodes)} facts remaining")
+
+        # Export to JSON
+        json_file = os.path.join(resolved_out, "knowledge_graph.json")
+        export_to_json(kg, json_file)
+        print(f"\nExported knowledge graph to {json_file}")
+
+        # Export to GEXF for visualization in tools like Gephi
+        gexf_file = os.path.join(resolved_out, "knowledge_graph.gexf")
+        export_to_gexf(kg.graph, gexf_file)
+        print(f"Exported knowledge graph to {gexf_file}")
+
     print("\nAdvanced knowledge graph operations completed successfully.")
 
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="KnowledgeGraph advanced usage example.")
+    parser.add_argument("--output-dir", default=None, help="Directory for example artifacts (default: temporary).")
+    cli_args = parser.parse_args()
+    main(output_dir=cli_args.output_dir)
