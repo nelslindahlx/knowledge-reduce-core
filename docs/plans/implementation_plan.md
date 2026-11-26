@@ -47,3 +47,9 @@ Master roadmap archived in `docs/plans/master_plan_v0_4_0.md`.
 - `[x]` Bumped SemVer cleanly from `0.3.0` to `0.4.0` across `pyproject.toml`, `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py` (with editable `.venv` metadata refreshed offline)
 - `[x]` Synchronized `ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`, `lessons_learned.md`, and `docs/plans/latest_walkthrough.md` with zero machine-local path leakage
 - `[x]` Verified gold evaluation (`knowledgereduce eval --gold data/gold_set.json`, `ModelShardEvaluator` + `data/gold_biochem.json`), all 7 `examples/*.py`, `scripts/test_drive.py`, simulated minimal-env coverage (`>= 75%`), `make local-ci`, `make smoke-pr`, and `make audit-prs` (`PR #7`)
+
+## Post-Release: Golden Regression Benchmark & Test Suite (`PR #8`)
+- `[x]` Fixed heading, question (`?`), single-letter initial, leading-article subject, and discourse/interrogative/quantifier noise bugs caught by golden evaluation (`extraction.py`, `quality.py`, `gold_set.json` F1 `1.000`)
+- `[x]` Built offline benchmark suite (`benchmarks/_in_memory_store.py`, `benchmarks/civichonors_book_benchmark.py`, `benchmarks/multisource_factory_benchmark.py`) and locked `benchmarks/datasets/civichonors_book/gold_annotations.json` + `baseline_v0_4_0.json`
+- `[x]` Added `tests/golden/` regression & `KuzuStore` parity suites, tightened `tests/test_evaluation.py` (`>= 0.90` P/R/F1), and tested `data/gold_biochem.json` directly in `tests/test_model_eval.py`
+- `[x]` Wired `make golden`, strict `lint`, `scripts/run_suite.py`, `tests/meta/`, and documentation sync (`PR #8`)

@@ -199,6 +199,43 @@ def test_gates_fail_on_high_hallucination():
     assert any("hallucination" in f.lower() for f in failures)
 
 
+def test_gold_biochem_dataset_and_gates():
+    gold_path = "data/gold_biochem.json"
+    positives, negatives = load_gold_facts(gold_path)
+    assert len(positives) == 15
+    assert len(negatives) == 5
+
+    ev = ModelShardEvaluator()
+    clean_shard = [
+        {
+            "subject": item["subject"],
+            "predicate": item["predicate"],
+            "object": item["object"],
+            "reliability_rating": "VERIFIED",
+        }
+        for item in positives
+    ]
+    clean_rep = ev.evaluate(clean_shard, gold_path)
+    ok_clean, failures_clean = check_gates(clean_rep, DEFAULT_GATES)
+    assert ok_clean is True, failures_clean
+    assert clean_rep["overall"]["f1"] == 1.0
+    assert clean_rep["hallucination_rate"] == 0.0
+
+    bad_shard = [
+        {
+            "subject": item["subject"],
+            "predicate": item["predicate"],
+            "object": item["object"],
+            "reliability_rating": "LIKELY_TRUE",
+        }
+        for item in negatives
+    ]
+    bad_rep = ev.evaluate(bad_shard, gold_path)
+    ok_bad, _ = check_gates(bad_rep, DEFAULT_GATES)
+    assert ok_bad is False
+    assert bad_rep["hallucination_rate"] == 1.0
+
+
 def _ollama_importable():
     try:
         import ollama  # noqa: F401

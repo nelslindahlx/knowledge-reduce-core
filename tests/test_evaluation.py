@@ -58,10 +58,12 @@ def test_evaluate_returns_metrics():
 
 def test_evaluate_recall_is_reasonable():
     # The gold set is built from sentences the SVO extractor should handle;
-    # recall should clear a sane floor (guards against regressions).
+    # enforce strict precision/recall/F1 regression floors.
     items = load_gold_set("data/gold_set.json")
     report = evaluate(SVOExtractor(), items)
-    assert report["recall"] >= 0.5, f"recall too low: {report}"
+    assert report["precision"] >= 0.90, f"precision regressed: {report}"
+    assert report["recall"] >= 0.90, f"recall regressed: {report}"
+    assert report["f1"] >= 0.90, f"f1 regressed: {report}"
 
 
 def test_evaluate_perfect_on_trivial_gold():

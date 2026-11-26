@@ -14,3 +14,7 @@ Full 6-phase audit, hardening, test expansion, governance alignment, and release
   - Ratcheted coverage gate `--cov-fail-under=58` -> `--cov-fail-under=75` across all 7 parity files and `README.md`.
   - Synchronized SemVer `0.4.0` across `pyproject.toml`, `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py` (removing stale ignored `.egg-info` shadowing editable `.dist-info` metadata).
   - Updated `ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`, `docs/plans/implementation_plan.md`, and `lessons_learned.md` with zero leaked workstation paths.
+- **Golden Regression Benchmark & Test Suite (`PR #8`)**:
+  - Adapted K-Reduce's Civic Honors book and multi-source golden benchmark harness into `benchmarks/civichonors_book_benchmark.py`, `benchmarks/multisource_factory_benchmark.py`, and `benchmarks/_in_memory_store.py`, locked against `data/civic_honors_book.txt` (`baseline_v0_4_0.json`).
+  - Fixed 4 real extraction/quality noise bugs in `knowledge_graph_pkg/extraction.py` and `knowledge_graph_pkg/quality.py` (`data/gold_set.json` F1 improved `0.857` -> `1.000`; `0` heading noise and `0` question fragments on the full book).
+  - Added `tests/golden/test_civichonors_book_golden.py` and `tests/golden/test_multisource_factory_golden.py`, strengthened `tests/test_evaluation.py` and `tests/test_model_eval.py`, and wired `make golden` into `make local-ci`.

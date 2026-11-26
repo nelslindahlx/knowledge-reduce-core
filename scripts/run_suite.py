@@ -34,6 +34,7 @@ def classify_stages(all_files):
         "test_coref.py", "test_semantic.py", "test_backends.py",
         "test_enhanced.py", "test_utils.py", "test_blockchain.py",
         "test_streaming.py", "test_sharding.py", "test_vector_kg.py",
+        "test_civichonors_book_golden.py", "test_multisource_factory_golden.py",
     }
 
     stage3_files = {

@@ -124,3 +124,8 @@ def test_handles_none_fields_safely(qf):
     bad = {"subject": None, "predicate": None, "object": None}
     assert qf.is_acceptable(bad) is False
     assert qf.score(bad) == 0.0
+
+
+@pytest.mark.parametrize("subj", ["What", "Why", "Many", "No", "Is"])
+def test_rejects_interrogative_and_quantifier_subjects(qf, subj):
+    assert qf.is_acceptable(_fact(subj, "is", "an invalid pseudo subject")) is False

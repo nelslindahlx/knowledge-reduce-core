@@ -1,4 +1,4 @@
-.PHONY: help install canary skill lint smoke-pr test ci local-ci audit-prs clean
+.PHONY: help install canary skill lint golden smoke-pr test ci local-ci audit-prs clean
 
 ifneq ($(wildcard .venv/Scripts/python.exe),)
     DEFAULT_PYTHON := .venv/Scripts/python.exe
@@ -15,6 +15,7 @@ help:
 	@echo "  make canary     - Run <10s import warning gate and tests/meta/ invariants"
 	@echo "  make skill      - Run Hermes skill smoke check and manifest tests"
 	@echo "  make lint       - Run ruff check and ruff format --check on governance/meta modules"
+	@echo "  make golden     - Run Civic Honors book and multi-source factory golden benchmarks"
 	@echo "  make smoke-pr   - Run canary + skill + lint + Stage 1 & Stage 2 test suites"
 	@echo "  make test       - Run full pytest suite with 75% coverage gate"
 	@echo "  make local-ci   - Run complete stratified local CI (zero GitHub Actions minutes)"
@@ -33,9 +34,13 @@ skill:
 	$(PYTHON) -m pytest tests/test_skill.py -q
 
 lint:
-	$(PYTHON) -m ruff check knowledge_graph_pkg tests scripts
-	$(PYTHON) -m ruff check --select E,F,W,I,B,UP,S,SIM,RUF --ignore E501,S101 scripts/github_pr_helper.py scripts/hooks tests/meta
-	$(PYTHON) -m ruff format --check scripts/github_pr_helper.py scripts/hooks tests/meta
+	$(PYTHON) -m ruff check knowledge_graph_pkg tests scripts benchmarks
+	$(PYTHON) -m ruff check --select E,F,W,I,B,UP,S,SIM,RUF --ignore E501,S101 scripts/github_pr_helper.py scripts/hooks tests/meta benchmarks tests/golden
+	$(PYTHON) -m ruff format --check scripts/github_pr_helper.py scripts/hooks tests/meta benchmarks tests/golden
+
+golden:
+	$(PYTHON) benchmarks/civichonors_book_benchmark.py --strict-regression
+	$(PYTHON) benchmarks/multisource_factory_benchmark.py --strict-regression
 
 smoke-pr: canary skill lint
 	$(PYTHON) scripts/run_suite.py --stage 1
@@ -46,7 +51,7 @@ test:
 
 ci: local-ci
 
-local-ci: canary skill lint test
+local-ci: canary skill lint golden test
 	@echo "Local CI run complete. Zero GitHub Action minutes consumed."
 
 audit-prs:

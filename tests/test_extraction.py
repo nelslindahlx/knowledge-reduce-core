@@ -100,3 +100,21 @@ def test_expletive_and_ampersand_company_names(ex):
     rels = ex.extract("Johnson & Johnson acquired Synthes.")
     subjects = {r["subject"] for r in rels}
     assert "Johnson & Johnson" in subjects
+
+
+def test_filters_questions_headings_and_discourse_openers(ex):
+    assert ex.extract("Chapter 1: What is Civic Engagement?") == []
+    assert ex.extract("Breaking Down") == []
+    assert ex.extract("Is the Civic Honors Program Feasible?") == []
+    assert ex.extract("However, change is inevitable.") == []
+
+
+def test_leading_article_and_single_letter_initial(ex):
+    rels = ex.extract("The university becomes a strategic partner.")
+    assert ("university", "becomes", "strategic partner") in _triples(rels)
+
+    rels_init = ex.extract("Dr. H. George Frederickson taught Concepts of Civil Society.")
+    assert any(
+        "H. George Frederickson" in r["subject"] and r["predicate"] == "taught"
+        for r in rels_init
+    )

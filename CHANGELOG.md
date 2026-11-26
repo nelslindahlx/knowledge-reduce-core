@@ -4,6 +4,15 @@ All notable changes to KnowledgeReduce Core are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Golden Regression Benchmark & Test Suite (`PR #8`)**:
+  - Added offline deterministic benchmark harness under `benchmarks/` (`civichonors_book_benchmark.py`, `multisource_factory_benchmark.py`, `_in_memory_store.py`) and locked `benchmarks/datasets/civichonors_book/gold_annotations.json` + `baseline_v0_4_0.json` for `data/civic_honors_book.txt`.
+  - Added `tests/golden/test_civichonors_book_golden.py` and `tests/golden/test_multisource_factory_golden.py` (including optional `KuzuStore` parity checks), tightened `tests/test_evaluation.py` precision/recall/F1 regression floors (`>= 0.90`), and validated `data/gold_biochem.json` directly in `tests/test_model_eval.py`.
+  - Wired `make golden` (`--strict-regression`), strict lint/format rules, `scripts/run_suite.py`, and `tests/meta/test_governance_and_invariants.py` golden-artifact invariants.
+
+### Fixed
+- **SVO Extraction & Quality Noise Hygiene**: Added `_is_heading_line()`, single-letter initial masking (`"H. George Frederickson"`), question (`?`) filtering, leading-article subject extraction (`"The university..."`), determiner non-verb exclusions, and expanded discourse/interrogative/quantifier stopword lists across `knowledge_graph_pkg/extraction.py` and `knowledge_graph_pkg/quality.py` (raising `data/gold_set.json` F1 from `0.857` to `1.000` and eliminating heading/question noise on `data/civic_honors_book.txt`).
+
 ## [0.4.0] - 2026-11-25
 
 Full codebase audit, security/parity hardening, test expansion, SemVer alignment, and zero-GitHub-Actions-minutes Maker/Checker governance (`PR #1`–`PR #7`).

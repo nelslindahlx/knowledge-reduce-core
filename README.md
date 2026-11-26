@@ -39,7 +39,7 @@ document (txt/md/html/pdf)
 ```
 
 Quality is measured, not guessed: `knowledgereduce eval` scores the
-extractor against a labeled gold set (current SVO baseline **F1 0.857**).
+extractor against a labeled gold set (current SVO baseline **F1 1.000**).
 
 ---
 
@@ -391,7 +391,7 @@ knowledgereduce eval                       # uses data/gold_set.json
 knowledgereduce eval --gold mygold.json
 ```
 
-**Current SVO baseline:** precision 0.80, recall 0.92, **F1 0.857**
+**Current SVO baseline:** precision 1.00, recall 1.00, **F1 1.000**
 (15 items). This is the number future extractor changes are measured
 against — chase F1, don't eyeball.
 
@@ -557,7 +557,8 @@ knowledgereduce compile-sft -o dataset.jsonl --format sharegpt --graph-db graph_
 
 ```bash
 pip install -e ".[dev,hermes]"
-make local-ci    # canary + skill + lint + pytest --cov-fail-under=75 (443+ tests; 86%+ cov with graph/viz extras)
+make golden      # offline Civic Honors book & multi-source factory golden benchmarks
+make local-ci    # canary + skill + lint + golden + pytest --cov-fail-under=75 (450+ tests; 86%+ cov with graph/viz extras)
 ```
 
 ## Examples
