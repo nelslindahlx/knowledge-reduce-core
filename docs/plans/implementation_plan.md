@@ -40,7 +40,10 @@ Master roadmap archived in `docs/plans/master_plan_v0_4_0.md`.
 - `[x]` Hardened all scripts (`run_suite.py`, `download_and_crawl.py`, `test_drive.py`, `mirror_skill.py`, `train_mlx.py`, `train_sft.py`)
 - `[x]` Fixed and verified all 7 `examples/*.py` + `scripts/test_drive.py` offline with zero CWD leftovers
 - `[x]` Isolated `tests/test_compile_sft.py`, lazy `find_spec` in `tests/conftest.py`, expanded `tests/test_cli.py` (`443 passed, 5 skipped`, `86.23%` coverage)
-- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `run_suite.py --stage all`, `make audit-prs`) & PR #6 submission
+- `[x]` Maker/Checker verification (`make local-ci`, `make smoke-pr`, `make audit-prs`) & merged PR #6 (`af44af4`)
 
-## Remaining Phases (`v0.4.0`)
-- `[ ]` Phase 6: Coverage Hardening, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)
+## Phase 6: Coverage Hardening, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)
+- `[x]` Ratcheted coverage gate from `--cov-fail-under=58` to `--cov-fail-under=75` across all 7 governance parity files (`Makefile`, `AGENTS.md`, `.agents/AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/workflows/ci.yml`, `tests/meta/test_governance_and_invariants.py`) and `README.md`
+- `[x]` Bumped SemVer cleanly from `0.3.0` to `0.4.0` across `pyproject.toml`, `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py` (with editable `.venv` metadata refreshed offline)
+- `[x]` Synchronized `ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`, `lessons_learned.md`, and `docs/plans/latest_walkthrough.md` with zero machine-local path leakage
+- `[x]` Verified gold evaluation (`knowledgereduce eval --gold data/gold_set.json`, `ModelShardEvaluator` + `data/gold_biochem.json`), all 7 `examples/*.py`, `scripts/test_drive.py`, simulated minimal-env coverage (`>= 75%`), `make local-ci`, `make smoke-pr`, and `make audit-prs` (`PR #7`)

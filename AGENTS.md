@@ -12,7 +12,7 @@ This file defines repository rules and conventions for **KnowledgeReduce Core** 
   - **Hermes Skill Gate**: `make skill` (`python scripts/smoke_skill.py` + `pytest tests/test_skill.py -q`).
   - **Lint & Format**: `make lint` (`ruff check knowledge_graph_pkg tests scripts` plus strict `ruff check` and `ruff format --check` on governance scripts and `tests/meta`).
   - **PR Smoke Tier**: `make smoke-pr` (`canary` + `skill` + `lint` + Stage 1 & Stage 2 via `scripts/run_suite.py`).
-  - **Full Local CI (Mandatory Before PR Merge)**: `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=58`).
+  - **Full Local CI (Mandatory Before PR Merge)**: `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=75`).
 
 ---
 
@@ -62,7 +62,7 @@ All modifications MUST flow through a two-part **Maker / Checker** GitHub Pull R
 ## 6. SemVer Parity & Code-First Invariants
 
 - **SemVer Parity**: `[project].version` in `pyproject.toml`, `__version__` (and fallback literals) in `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py` MUST match 1:1. Tag releases cleanly on `main` (`git tag -a vX.Y.Z -m "..."`).
-- **Code-First Invariants**: Core invariants (workflow trigger checks, full MIT `LICENSE`, SemVer parity, path/pyc hygiene, read-only Cypher guards, `GraphTools` schema parity, offline `FactCritic` heuristics, `--cov-fail-under=58` parity) are enforced mechanically in `tests/meta/test_governance_and_invariants.py`.
+- **Code-First Invariants**: Core invariants (workflow trigger checks, full MIT `LICENSE`, SemVer parity, path/pyc hygiene, read-only Cypher guards, `GraphTools` schema parity, offline `FactCritic` heuristics, `--cov-fail-under=75` parity) are enforced mechanically in `tests/meta/test_governance_and_invariants.py`.
 
 ---
 

@@ -16,7 +16,7 @@ help:
 	@echo "  make skill      - Run Hermes skill smoke check and manifest tests"
 	@echo "  make lint       - Run ruff check and ruff format --check on governance/meta modules"
 	@echo "  make smoke-pr   - Run canary + skill + lint + Stage 1 & Stage 2 test suites"
-	@echo "  make test       - Run full pytest suite with 58% coverage gate"
+	@echo "  make test       - Run full pytest suite with 75% coverage gate"
 	@echo "  make local-ci   - Run complete stratified local CI (zero GitHub Actions minutes)"
 	@echo "  make audit-prs  - Verify zero open PRs and zero lingering remote feature branches"
 	@echo "  make clean      - Remove build, cache, coverage, and stray test artifacts"
@@ -42,7 +42,7 @@ smoke-pr: canary skill lint
 	$(PYTHON) scripts/run_suite.py --stage 2
 
 test:
-	$(PYTHON) -m pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=58
+	$(PYTHON) -m pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=75
 
 ci: local-ci
 

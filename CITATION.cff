@@ -5,8 +5,8 @@ authors:
     given-names: "Nels"
     orcid: "https://orcid.org/0000-0002-1855-6096"
 title: "KnowledgeReduce Core"
-version: "0.3.0"
-date-released: 2026-07-18
+version: "0.4.0"
+date-released: 2026-11-25
 license: "MIT"
 repository-code: "https://github.com/nelslindahlx/knowledge-reduce-core"
 url: "https://github.com/nelslindahlx/knowledge-reduce-core"

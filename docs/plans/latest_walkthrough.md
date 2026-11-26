@@ -1,24 +1,16 @@
-# Latest Walkthrough: Phase 5 CLI Packaging, Scripts, Examples & Test Isolation
+# Latest Walkthrough: `v0.4.0` Audit, Hardening & Release Sync
 
-Summary of Phase 5 remediation from `docs/plans/master_plan_v0_4_0.md` executed on branch `fix/cli-scripts-examples`.
+Full 6-phase audit, hardening, test expansion, governance alignment, and release sync for **KnowledgeReduce Core** `v0.4.0` (`docs/plans/master_plan_v0_4_0.md`).
 
-## Changes Applied
-- **CLI Packaging, Resource Management & Error Handling (`knowledge_graph_pkg/cli.py`)**:
-  - Added `_import_script()` so helper script subcommands (`train-mlx`, `train-sft`, `test-drive`, `run-suite`, `skill-install`) work cleanly inside tests/source checkouts and exit cleanly (`code 3`) in wheel-only installs without `scripts/`.
-  - Moved `get_graph_store()`, `WatcherDaemon()`, `ConsensusEngine()`, `MLXTrainer()`, and `get_backend()` calls inside `try ... except ImportError` returning exit code `3`, and closed `Catalog` and graph stores in `with`/`finally:` blocks.
-  - Fixed `catalog --min-quality 0` falsy-zero check, removed duplicate `distiller.stats()` and `retriever.format_context()` calls in `_cmd_distill` and `_cmd_query_graph`, validated `--split` bounds (`0.0..1.0`), added atomic JSON/line writers, updated `critique` default model to `gemini-2.0-flash`, checked missing `--store` dirs in `critique`/`compile-sft`, sanitized `crawl` drop IDs, and propagated non-zero exits on `batch` errors.
-- **Scripts (`scripts/*.py`)**:
-  - Updated `run_suite.py` to execute from `cwd=project_root` and explicitly classify all 57 test files into Stages 1–4.
-  - Updated `download_and_crawl.py` (`sys.executable`, `-m knowledge_graph_pkg`, `total_size <= 0` guard, explicit return codes), `test_drive.py` (`tempfile.TemporaryDirectory` + `kuzu_store.close()`), `mirror_skill.py` (cross-platform byte comparison), and `train_mlx.py` / `train_sft.py` (non-empty chat JSONL validation + CUDA `bf16` detection).
-- **Examples & Test Isolation (`examples/*.py`, `tests/test_compile_sft.py`, `tests/conftest.py`, `tests/test_cli.py`)**:
-  - Fixed `agent_integration.py` (lazy `urllib.request`, `/api/rag_retrieve`), `advanced_usage.py` / `enhanced_features.py` / `ultimate_features.py` (lazy `Agg` matplotlib, `perf_counter()` zero-division fix, missing `source_id`, `plot_knowledge_graph(kg.graph, ...)`, deterministic `event_queue.join()`, temporary `--output-dir` defaults with zero CWD leftovers).
-  - Isolated `tests/test_compile_sft.py` in `TemporaryDirectory`, switched `tests/conftest.py` to `importlib.util.find_spec`, and added CLI & Kùzu graph subcommand tests in `tests/test_cli.py`.
+## Milestones Completed
 
-## Verification Results
-
-| Check | Result | Timing |
-|---|---|---|
-| All 7 `examples/*.py` + `scripts/test_drive.py` | Exited `0`, zero untracked CWD artifacts | `~4s` total |
-| `make local-ci` (`canary`, `skill`, `lint`, `test`) | `443 passed, 5 skipped`, `86.23%` coverage (`>= 58%` gate) | `6.92s` (`pytest`) |
-| `make smoke-pr` & `scripts/run_suite.py --stage all` | All stages (`57` test files) passed cleanly | Passed |
-| `make lint` (`ruff check` + strict governance check/format) | `All checks passed!`, `4 files already formatted` | `< 1s` |
+- **Repo Hardening (`PR #1`, `5890792`)**: Added `AGENTS.md` + byte-identical `.agents/AGENTS.md`, `.agents/rules/`, `.agents/hooks.json` (`scripts/hooks/pre_pr_safety_gate.py`), `scripts/github_pr_helper.py`, manual `workflow_dispatch`-only workflows, `Makefile`, full MIT `LICENSE`, `CITATION.cff`, and `tests/meta/test_governance_and_invariants.py`.
+- **Phase 1 — Security, Graph Store Parity, MCP & Watcher (`PR #2`, `455e322`)**: Unified `BaseGraphStore` / `KuzuStore` / `Neo4jStore` normalization (`normalize_fact_record`), read-only `GraphTools` Cypher guard, hardened `mcp_server.py` (JWT auth without plaintext bypasses, workspace containment, WebSocket partitioning, CORS defaults, `DASHBOARD_HTML` XSS escaping & JS bug fixes), wired `WatcherDaemon` -> `factory.batch_drop` -> graph pipeline, and added real isolated integration tests.
+- **Phase 2 — Entity Resolution, Graph-RAG, Compiler & Ontology (`PR #3`, `9eae4e2`)**: Added `BaseGraphStore.edge_count()`, non-destructive boundary-aware `entity_resolution.py`, contradiction-aware/cached `rag.py` with pure-Python PageRank fallback when `scipy` is absent, cycle-free `graph_compiler.py`, and case-insensitive single-pass `ontology.py`.
+- **Phase 3 — ModelReduce Refinery & Training (`PR #4`, `8d708ba`)**: Fixed `model_probe.py` (OpenAI `json_schema`, Gemini schema sanitization, `gemini-2.0-flash`, `logits_all=True`, timeouts), `FactCritic` protocol parity & fail-closed parsing (`critique.py`), multi-engine `ConsensusEngine` (`batch_drop(..., include_engine_in_hash=True)`), boundary-matched capability weights (`cross_model.py`), compound-safe `ModelDrop`, exact gold recall (`model_eval.py`), atomic `graveyard.py`, and `prepare_mlx_dataset()` (`training_prep.py`, `train.py`).
+- **Phase 4 — Core Graph, V1 Ingestion/Distillation, Storage & Extended Modules (`PR #5`, `2bbadc4`)**: Hardened `store.py` (path-traversal guards, immutable versioning, canonical key parity), `lifecycle.py` (non-exponential `reextract_store`), `catalog.py`, `semantic.py` (lemmatization, cosine similarity scale fix), `core.py` (atomic `update_fact`), `extraction.py`, `coref.py`, `evaluation.py`, `distillation.py`, `quality.py`, `qa.py`, `ingest.py`, `export.py`, plus all 8 Cluster B modules (`enhanced.py`, `utils.py`, `blockchain.py`, `streaming.py`, `sharding.py`, `vector.py`, `analysis.py`, `visualization.py`) with 6 new test suites.
+- **Phase 5 — CLI Packaging, Scripts, Examples & Test Isolation (`PR #6`, `af44af4`)**: Packaged script discovery (`_import_script`), guarded optional graph/backend constructors (`ImportError` -> exit `3`), context-managed store/catalog cleanup, `catalog --min-quality 0`, single-pass `query-graph`/`distill`, atomic exports, self-cleaning `examples/*.py` and `scripts/test_drive.py`, and `importlib.util.find_spec` test collection.
+- **Phase 6 — Coverage Ratchet, Gold Eval & `v0.4.0` SemVer/Doc Sync (`PR #7`)**:
+  - Ratcheted coverage gate `--cov-fail-under=58` -> `--cov-fail-under=75` across all 7 parity files and `README.md`.
+  - Synchronized SemVer `0.4.0` across `pyproject.toml`, `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py` (removing stale ignored `.egg-info` shadowing editable `.dist-info` metadata).
+  - Updated `ARCHITECTURE.md`, `README.md`, `CHANGELOG.md`, `docs/plans/implementation_plan.md`, and `lessons_learned.md` with zero leaked workstation paths.

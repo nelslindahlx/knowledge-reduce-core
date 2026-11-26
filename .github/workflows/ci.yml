@@ -49,4 +49,4 @@ jobs:
           uv run --python ${{ matrix.python-version }} pytest \
             --cov=knowledge_graph_pkg \
             --cov-report=term-missing \
-            --cov-fail-under=58
+            --cov-fail-under=75

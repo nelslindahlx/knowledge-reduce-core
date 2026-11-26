@@ -306,5 +306,6 @@ def test_coverage_gate_parity() -> None:
     )
     for path in gate_files:
         text = path.read_text(encoding="utf-8")
-        assert "--cov-fail-under=58" in text, f"Expected 58% coverage gate in {path.name}"
+        assert "--cov-fail-under=75" in text, f"Expected 75% coverage gate in {path.name}"
+        assert "--cov-fail-under=58" not in text, f"Stale 58% coverage gate in {path.name}"
         assert "--cov-fail-under=60" not in text, f"Stale 60% coverage gate in {path.name}"

@@ -24,7 +24,7 @@ graph TD
     subgraph KnowledgeGraph [Durable Store & Query]
         SVO -->|Facts + Ratings| Graph[KnowledgeGraph Core]
         NLP -->|Facts + Ratings| Graph
-        Graph -->|LRU Cache / Sharding| Cache[Graph Store]
+        Graph -->|Per-Instance Cache / Sharding| Cache[Graph Store]
         Graph -->|Cypher Queries| DB[Pluggable DB: Kùzu / Neo4j]
     end
 
@@ -48,45 +48,82 @@ graph TD
 ## 📂 Project Directory Structure
 
 ```
-├── pyproject.toml              # Dependencies, package metadata, mypy/pytest settings
+├── pyproject.toml              # Dependencies, package metadata, ruff/coverage/mypy/pytest settings
 ├── CONTRIBUTING.md             # Developer playbook & local setup guide
 ├── ARCHITECTURE.md             # System topology and modular design reference
 ├── lessons_learned.md          # Registry of implementation and debugging insights
 ├── data/
-│   └── gold_biochem.json       # Labeled biochemistry gold set for model evaluation
+│   ├── gold_biochem.json       # Labeled biochemistry gold set for model evaluation
+│   └── gold_set.json           # Gold set for SVO/coref extraction F1 evaluation
 ├── docs/
 │   ├── ROADMAP.md              # V1 development milestones roadmap
 │   ├── ROADMAP-v2.md           # V2 ongoing factory store roadmap
-│   └── model_reduce_training.md# Tutorial guide for training models on distilled shards
+│   ├── model_reduce_training.md# Tutorial guide for training models on distilled shards
+│   └── plans/                  # Audit master plan, checklist & verified walkthroughs
 ├── knowledge_graph_pkg/        # Main source package
-│   ├── cli.py                  # Entrypoint CLI command routing
+│   ├── cli.py                  # Entrypoint CLI command routing (`knowledgereduce`)
 │   ├── core.py                 # Core KnowledgeGraph structures and Reliability Ratings
-│   ├── store.py                 # Simple file-based persistent storage
+│   ├── store.py                # Durable file-based drop store & audit summaries
+│   ├── catalog.py              # SQLite catalog indexing & querying over drops
+│   ├── lifecycle.py            # Store re-extraction & lifecycle verification
+│   ├── factstore.py            # FactStore bridge & high-level capture helpers
+│   ├── schemas.py              # Canonical schema & JSON Schema definitions
 │   ├── ingest.py               # Document loading helpers (Text, HTML, PDF)
 │   ├── extraction.py           # Subject-Predicate-Object (SVO) parser
+│   ├── extractor_base.py       # Shared Extractor protocol/base interface
 │   ├── spacy_extractor.py      # Optional SpaCy & Coreference resolution backend
+│   ├── coref.py                # Lightweight pronoun/entity coreference resolver
+│   ├── evaluation.py           # Gold-set precision/recall/F1 extractor evaluation
 │   ├── distillation.py         # Fact filtering, deduplication, and token ranking
-│   ├── distillation_io.py      # File export formatting (chat, instruction, plain text)
-│   ├── factory.py              # Durable drop, catalog, and compilation pipeline
-│   ├── graph_store_base.py     # BaseGraphStore abstract class for database-agnostic operations
-│   ├── graph_store_factory.py  # get_graph_store factory mapping connection strings
-│   ├── kuzu_store.py           # Kùzu graph database connector (inherits from BaseGraphStore)
-│   ├── neo4j_store.py          # Neo4j server graph database connector (inherits from BaseGraphStore)
-│   ├── graph_tool.py           # NetworkX graph manipulation and visualization helpers
-│   ├── mcp_server.py           # MCP JSON-RPC tool server & 3D WebGL Dashboard
-│   ├── model_probe.py          # Probing fleet (Ollama/Gemini/vLLM backends)
-│   ├── probe_templates.py      # Domain-parameterized schemas and prompts
+│   ├── export.py               # File export formatting (chat, instruction, plain text)
+│   ├── quality.py              # FactQualityFilter quality scoring & filtering
+│   ├── qa.py                   # Question-answering helper & digest assembly
+│   ├── semantic.py             # Semantic extraction, similarity & enrichment
+│   ├── enhanced.py             # EnhancedKnowledgeGraph with per-instance caching
+│   ├── utils.py                # JSON/CSV import/export & URL helpers
+│   ├── vector.py               # VectorKnowledgeGraph semantic search & clustering
+│   ├── streaming.py            # Thread-safe StreamingKnowledgeGraph event processor
+│   ├── sharding.py             # ShardedKnowledgeGraph partition & rebalance manager
+│   ├── blockchain.py           # BlockchainKnowledgeGraph ledger & integrity proofs
+│   ├── analysis.py             # Graph analytics & entity similarity utilities
+│   ├── visualization.py        # Matplotlib / GEXF / GraphML export utilities
+│   ├── factory.py              # Durable batch drop, catalog, and compilation pipeline
+│   ├── graph_store_base.py     # BaseGraphStore abstract class & canonical fact normalization
+│   ├── graph_store_factory.py  # get_graph_store factory mapping connection strings/URIs
+│   ├── kuzu_store.py           # Kùzu graph database connector (inherits BaseGraphStore)
+│   ├── neo4j_store.py          # Neo4j server graph database connector (inherits BaseGraphStore)
+│   ├── graph_tool.py           # Read-only Cypher query & MCP tool layer (GraphTools)
+│   ├── mcp_server.py           # FastAPI / stdlib MCP server, WebSockets & 3D WebGL Dashboard
+│   ├── entity_resolution.py    # Prefix-blocked boundary-aware alias deduplication
+│   ├── ontology.py             # Case-insensitive OntologyDistiller hierarchy builder
+│   ├── rag.py                  # Hybrid PageRank + vector GraphRAGRetriever & formatters
+│   ├── graph_compiler.py       # Cycle-free subgraph & conflict compilation into SFT JSONL
+│   ├── watcher.py              # Watchdog / WAL SQLite directory watcher & graph pipeline
+│   ├── model_probe.py          # Probing fleet (Ollama/Gemini/OpenAI/llama.cpp backends)
+│   ├── probe_templates.py      # Domain-parameterized schemas and probe prompts
+│   ├── critique.py             # Fail-closed FactCritic verification engine
+│   ├── consensus.py            # Multi-engine consensus probing & store orchestration
 │   ├── model_drop.py           # Immutable model drops (shards)
 │   ├── cross_model.py          # Cross-model agreement and clustering
 │   ├── embeddings.py           # Vector embedding wrappers & NumPy VectorIndex
 │   ├── model_distill.py        # Agreement-based shard distillation
 │   ├── model_eval.py           # Gold set validation and quality gating
-│   ├── training_prep.py        # Token budget and training format preparation
+│   ├── training_prep.py        # Token budget and MLX/SFT training format preparation
+│   ├── train.py                # MLXTrainer fine-tuning wrapper
+│   ├── crawler.py              # Model weight crawler with logprob entropy pruning
 │   └── graveyard.py            # Async model checkpointing and daemon discovery
 ├── scripts/
-│   ├── run_suite.py            # Sequential stage-based test runner script
-│   └── train_sft.py            # SFT LoRA training execution script (dry-run mode)
-└── tests/                      # Reorganized test suite (41 test files)
+│   ├── run_suite.py            # Sequential stage-based test runner script (Stages 1–4)
+│   ├── smoke_skill.py          # Offline Hermes skill & SemVer smoke verification
+│   ├── mirror_skill.py         # Sync canonical Hermes skill into local Hermes config
+│   ├── test_drive.py           # Offline smoke drive for core graph & Kùzu stores
+│   ├── download_and_crawl.py   # Model download and entropy crawl helper
+│   ├── train_mlx.py            # Apple Silicon MLX fine-tuning runner
+│   ├── train_sft.py            # PyTorch/PEFT LoRA SFT execution script
+│   ├── github_pr_helper.py     # Maker/Checker GitHub PR creation & audit helper
+│   └── hooks/
+│       └── pre_pr_safety_gate.py # Antigravity PreToolUse branch & meta-test gate
+└── tests/                      # Stratified test suite (57 test files incl. tests/meta/)
 ```
 
 ---

@@ -194,5 +194,17 @@ During Phase 5 (`cli.py`, `scripts/*.py`, `examples/*.py`, `tests/conftest.py`),
 * Wrap both optional module imports AND factory/store constructors inside `try ... except ImportError` in CLI subcommands, and always check `is not None` for numeric CLI filters (`0` is valid!).
 * Default demo/example scripts and CLI smoke scripts to `tempfile.TemporaryDirectory()` (with an explicit optional `--output-dir` override) and `Agg` Matplotlib backend so running every example end-to-end leaves `git status` clean.
 
+---
+
+## 18. Editable Package Metadata Refresh, Stale `.egg-info` Shadowing & Minimal-Env Coverage Gates
+
+### Context
+During the `v0.4.0` release bump (`PR #7`), `pyproject.toml` was updated from `0.3.0` to `0.4.0` and refreshed offline in `.venv` via `uv pip install --no-deps --no-build-isolation -e .`. However, importing `knowledge_graph_pkg` from the repository root still reported `__version__ == "0.3.0"` because a gitignored `knowledgereduce.egg-info/` directory at the repo root appeared earlier on `sys.path` than `.venv`'s `site-packages/knowledgereduce-0.4.0.dist-info/`. Additionally, full local `.venv` coverage reached `86%+` with `[graph]`, `[viz]`, and FastAPI installed, whereas `.github/workflows/ci.yml` installs minimal `-e ".[dev,hermes]"` (`~78%` coverage).
+
+### Lesson Learned
+* After bumping `version` in `pyproject.toml`, always remove stale root `*.egg-info/` directories (`make clean`) AND refresh editable metadata offline (`uv pip install --no-deps --no-build-isolation -e .`) so `importlib.metadata.version("knowledgereduce")` resolves the new version rather than cached `PKG-INFO`.
+* Set `--cov-fail-under` according to the minimal CI extra set (`75%` safely covers minimal `.[dev,hermes]` at `~78%` while full local environments run at `86%+`) and keep every governance parity file (`Makefile`, `AGENTS.md`, `.agents/AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/workflows/ci.yml`, `tests/meta/test_governance_and_invariants.py`) synchronized.
+
+
 
 

@@ -6,7 +6,7 @@
 
 ## Maker Checklist
 - [ ] Changes live on a dedicated feature branch targeting `main` (never pushed directly to `main`).
-- [ ] Local CI ran and passed on the latest commit (`make local-ci`: canary meta-gate, Hermes skill smoke/tests, `ruff check`, `ruff format --check` on governance/meta modules, and `pytest --cov=knowledge_graph_pkg --cov-fail-under=58`).
+- [ ] Local CI ran and passed on the latest commit (`make local-ci`: canary meta-gate, Hermes skill smoke/tests, `ruff check`, `ruff format --check` on governance/meta modules, and `pytest --cov=knowledge_graph_pkg --cov-fail-under=75`).
 - [ ] Regression and negative tests cover new behavior/edge cases.
 - [ ] Zero tracked `*.pyc` files, zero stray `.db` artifacts, and zero leaked machine-local paths.
 - [ ] `CHANGELOG.md`, `lessons_learned.md`, and `docs/plans/` updated as appropriate.

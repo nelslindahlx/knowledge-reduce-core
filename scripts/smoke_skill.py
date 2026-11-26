@@ -19,7 +19,7 @@ def run_smoke_tests():
         return 1
 
     # 2. Version Alignment Check
-    expected_version = "0.3.0"
+    expected_version = "0.4.0"
     if knowledge_graph_pkg.__version__ != expected_version:
         print(f"[Smoke] ERROR: Package version mismatch! Expected {expected_version}, got {knowledge_graph_pkg.__version__}", file=sys.stderr)
         return 2
