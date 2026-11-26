@@ -4,8 +4,16 @@ All notable changes to KnowledgeReduce Core are documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-25
+
+Full codebase audit, security/parity hardening, test expansion, SemVer alignment, and zero-GitHub-Actions-minutes Maker/Checker governance (`PR #1`–`PR #7`).
+
 ### Added
-- **Phase 5 CLI Packaging, Scripts, Examples & Test Isolation**:
+- **Phase 6 Release Hardening, Coverage Ratchet & Documentation Sync (`PR #7`)**:
+  - Ratcheted pytest coverage threshold from `58%` to `75%` (`--cov-fail-under=75`) across all 7 parity files (`Makefile`, `AGENTS.md`, `.agents/AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/workflows/ci.yml`, `tests/meta/test_governance_and_invariants.py`) and `README.md` so minimal `.[dev,hermes]` CI installs and full dev environments share an enforceable floor.
+  - Bumped SemVer consistently to `0.4.0` across `pyproject.toml`, `knowledge_graph_pkg/__init__.py`, `CITATION.cff`, `.agents/skills/knowledge-reduce-core/SKILL.md`, and `scripts/smoke_skill.py`.
+  - Synchronized `ARCHITECTURE.md` (removed non-existent `distillation_io.py`, corrected `graph_tool.py` role, added full module/script layout and `57` test-file count) and `README.md` (core `networkx` + `numpy` deps, per-instance caching, complete `Quick Start` imports, unified `## Installation`, `gemini-2.0-flash`, all 7 examples, `make local-ci` guidance).
+- **Phase 5 CLI Packaging, Scripts, Examples & Test Isolation (`PR #6`)**:
   - Added `_import_script()`, atomic `_write_lines_atomic()`/`_write_json_atomic()`, and `_validate_split()` helpers in `knowledge_graph_pkg/cli.py`.
   - Added explicit Stage 1–4 mappings in `scripts/run_suite.py` covering all 57 test modules and headless `--output-dir` temporary directory support across `examples/advanced_usage.py`, `examples/enhanced_features.py`, and `examples/ultimate_features.py`.
   - Expanded CLI/script integration and regression tests across `tests/test_cli.py` and `tests/test_compile_sft.py`.

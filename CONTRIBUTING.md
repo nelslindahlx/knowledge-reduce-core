@@ -40,7 +40,7 @@ make canary      # <10s: import warning gate + tests/meta/ invariants & governan
 make skill       # Hermes skill smoke test + tests/test_skill.py manifest validation
 make lint        # ruff check across code/tests/scripts + strict ruff check/format on governance/meta modules
 make smoke-pr    # canary + skill + lint + Stage 1 & Stage 2 tests
-make test        # full pytest suite with --cov-fail-under=58
+make test        # full pytest suite with --cov-fail-under=75
 make local-ci    # complete local CI gate (canary + skill + lint + test)
 make audit-prs   # verify zero open PRs and zero lingering remote branches
 ```
@@ -51,7 +51,7 @@ uv run --no-sync python -W error::Warning -c "import knowledge_graph_pkg"
 uv run --no-sync python -m pytest tests/meta/ -q
 uv run --no-sync python scripts/smoke_skill.py
 uv run --no-sync python -m ruff check knowledge_graph_pkg tests scripts
-uv run --no-sync python -m pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=58
+uv run --no-sync python -m pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=75
 ```
 
 You can also run targeted layers with `scripts/run_suite.py`:

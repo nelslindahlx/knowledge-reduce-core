@@ -1,7 +1,7 @@
 ---
 name: knowledge-reduce-core
 description: "Distill documents into compact, reliability-rated, model-absorbable knowledge facts from the local knowledgereduce package. Use when the task involves document distillation, knowledge graphs, model-absorbable JSONL, store/catalog/compile operations, MCP tool invocation, or Hermes wiring for this repo."
-version: 0.3.0
+version: 0.4.0
 author: Nels Lindahl
 license: MIT
 platforms: [linux, macos, windows]

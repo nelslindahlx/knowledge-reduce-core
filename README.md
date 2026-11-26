@@ -19,7 +19,7 @@ See `.agents/skills/knowledge-reduce-core/SKILL.md` for Hermes usage and smoke c
 Point it at text (or HTML/Markdown/PDF), and it extracts facts, attributes
 pronouns, filters out noise, ranks by quality, deduplicates, and emits
 fine-tuning-ready JSONL or a RAG-ready digest. The core is pure-Python and
-dependency-light (just `networkx`); spaCy and PDF support are opt-in extras.
+dependency-light (just `networkx` and `numpy`); spaCy, graph DB, and PDF support are opt-in extras.
 
 ```bash
 pip install -e .
@@ -52,7 +52,7 @@ extractor against a labeled gold set (current SVO baseline **F1 0.857**).
 - Import and export knowledge graphs in various formats
 
 ### Enhanced Performance
-- LRU caching for improved query performance
+- Per-instance caching for improved query performance
 - Batch operations for efficient data manipulation
 - Change tracking and auto-saving capabilities
 - Optimized data structures for large knowledge graphs
@@ -89,22 +89,21 @@ extractor against a labeled gold set (current SVO baseline **F1 0.857**).
 
 ## Installation
 
-Core install is pure-Python and dependency-light:
+Core install is pure-Python and dependency-light (`networkx` and `numpy`):
 
 ```bash
-pip install -e .
-```
-
-Hermes-enabled install with optional runtime helpers:
-
-```bash
-pip install -e ".[hermes]"
+pip install -e .                # core (networkx + numpy)
+pip install -e ".[ingest,pdf]"  # + HTML/PDF document ingestion
+pip install -e ".[dev,hermes]"  # + pytest, ruff, pyyaml & Hermes runtime helpers
+pip install -e ".[graph]"       # + Kuzu / Neo4j graph stores
 ```
 
 
 ## Quick Start
 
 ```python
+from datetime import datetime
+
 from knowledge_graph_pkg import (
     KnowledgeGraph, 
     ReliabilityRating,
@@ -193,14 +192,6 @@ knowledgereduce compile -o ctx.jsonl   --store store --max-tokens 2000 --categor
 - **Idempotent**: re-dropping an unchanged source is skipped (content hash).
 - **The store is the durable asset**; `train.jsonl` is just a view you can
   regenerate. Compilation records which drops it drew from.
-
-## Installation
-
-```bash
-pip install -e .                # core (pure-Python, just networkx)
-pip install -e ".[ingest,pdf]"  # + HTML/PDF document ingestion
-pip install -e ".[dev]"         # + pytest for development
-```
 
 ## Command-line usage
 
@@ -548,7 +539,7 @@ knowledgereduce crawl --seed "Mitochondria" --backend llama-cpp --model qwen2.5-
 ### ⚖️ Critique & Verification Engine (Self-Correction)
 Audit facts using a high-capability model backend (like Google Gemini) to identify hallucinations. Flagged facts are automatically demoted to `UNVERIFIED` in KùzuDB:
 ```bash
-knowledgereduce critique --backend gemini --model gemini-1.5-flash --graph-db graph_db
+knowledgereduce critique --backend gemini --model gemini-2.0-flash --graph-db graph_db
 ```
 
 ### 📦 SFT Dataset Compiler
@@ -565,18 +556,20 @@ knowledgereduce compile-sft -o dataset.jsonl --format sharegpt --graph-db graph_
 ## Testing
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install networkx numpy requests beautifulsoup4 matplotlib pytest
-pytest --cov=knowledge_graph_pkg tests/    # 303 tests
+pip install -e ".[dev,hermes]"
+make local-ci    # canary + skill + lint + pytest --cov-fail-under=75 (443+ tests; 86%+ cov with graph/viz extras)
 ```
 
 ## Examples
 
-See the `examples` directory for detailed usage examples:
-- `basic_usage.py`: Simple knowledge graph operations
-- `enhanced_features.py`: Advanced features demonstration
-- `ultimate_features.py`: Comprehensive example of all capabilities
+See the `examples` directory for detailed offline usage examples:
+- `basic_usage.py`: Simple knowledge graph operations and persistence
+- `advanced_usage.py`: Batch updates, entity search, and offline performance metrics
+- `enhanced_features.py`: Per-instance caching, semantic matching, vector search, streaming, blockchain, and visualization export
+- `ultimate_features.py`: Combined pipeline across enhanced, vector, streaming, and blockchain graphs
 - `distillation_pipeline.py`: End-to-end text -> facts -> distilled JSONL
+- `graph_rag_pipeline.py`: KùzuDB graph store, ontology distillation, and GraphRAG retrieval
+- `agent_integration.py`: HTTP/MCP integration client and offline fallback usage
 
 ## Documentation
 
@@ -588,7 +581,7 @@ help(knowledge_graph_pkg)
 
 ## Governance & Local CI
 
-Routine development follows the Maker/Checker Pull Request workflow documented in `AGENTS.md` and `CONTRIBUTING.md`. GitHub Actions workflows under `.github/workflows/` are restricted to manual `workflow_dispatch` triggers so normal PRs consume zero GitHub Actions minutes; run local verification via `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-fail-under=58`) and audit open PRs/branches with `make audit-prs`.
+Routine development follows the Maker/Checker Pull Request workflow documented in `AGENTS.md` and `CONTRIBUTING.md`. GitHub Actions workflows under `.github/workflows/` are restricted to manual `workflow_dispatch` triggers so normal PRs consume zero GitHub Actions minutes; run local verification via `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-fail-under=75`) and audit open PRs/branches with `make audit-prs`.
 
 ## License
 
