@@ -40,8 +40,47 @@ _ROLE_NOUNS = {
     "mayor", "secretary", "manager", "owner", "creator", "editor",
 }
 
-# Words that should never be treated as a subject on their own.
-_NON_SUBJECT = {"this", "that", "these", "those", "there", "here"}
+# Words that should never be treated as a subject on their own (or sentence-initial
+# discourse/interrogative/auxiliary/quantifier openers).
+_NON_SUBJECT = {
+    "this", "that", "these", "those", "there", "here",
+    "however", "therefore", "moreover", "furthermore", "meanwhile", "nevertheless",
+    "instead", "also", "what", "why", "how", "who", "whom", "whose", "which",
+    "where", "when", "while", "if", "although", "though", "because", "since",
+    "unless", "is", "are", "was", "were", "do", "does", "did", "can", "could",
+    "would", "should", "will", "shall", "may", "might", "must",
+    "many", "most", "no", "not", "few", "several", "such", "only", "even",
+    "much", "more", "less", "none", "nothing", "nobody",
+    "chapter", "section", "figure", "table",
+}
+
+_HEADING_CONNECTORS = {
+    "of", "in", "on", "at", "to", "for", "with", "by", "from",
+    "as", "and", "or", "the", "a", "an",
+}
+
+_NON_VERBS = {
+    "and", "or", "but", "of", "in", "on", "at", "to", "for", "with", "by",
+    "from", "as", "that", "which", "who", "the", "a", "an", "this",
+    "these", "those", "my", "your", "his", "her", "its", "our", "their",
+}
+
+
+def _is_heading_line(sentence: str) -> bool:
+    """Return True if *sentence* looks like a section header rather than prose."""
+    s = sentence.strip()
+    if not s or s.endswith(":"):
+        return True
+    if s.endswith((".", "!", "?")):
+        return False
+    words = [w.strip(",;:()\"'“”") for w in s.split() if w.strip(",;:()\"'“”")]
+    if not words or len(words) > 12:
+        return False
+    sig = [w for w in words if w.lower() not in _HEADING_CONNECTORS]
+    if not sig:
+        return True
+    cap = sum(1 for w in sig if w[:1].isupper())
+    return (cap / len(sig)) >= 0.7
 
 # Relative pronouns and subordinators that introduce a nested clause rather than
 # continuing a multi-word noun phrase subject.
@@ -86,10 +125,12 @@ class SVOExtractor:
     # ------------------------------------------------------------------ #
     @staticmethod
     def _split_sentences(text: str) -> List[str]:
-        # Mask abbreviation periods so they don't trigger a sentence break.
+        # Mask abbreviation periods and single-letter initials (e.g. "H. George")
+        # so they don't trigger a sentence break.
         masked = text
         for abbr in _ABBREVIATIONS:
             masked = masked.replace(abbr, abbr.replace(".", _DOT_SENTINEL))
+        masked = re.sub(r"\b([A-Z])\.(?=\s)", rf"\1{_DOT_SENTINEL}", masked)
         out = []
         for m in _SENTENCE_RE.finditer(masked):
             s = m.group(0).replace(_DOT_SENTINEL, ".").strip()
@@ -98,22 +139,45 @@ class SVOExtractor:
         return out
 
     def _extract_sentence(self, sentence: str) -> List[Dict[str, Any]]:
+        stripped = sentence.strip()
+        if not stripped or stripped.endswith("?") or _is_heading_line(stripped):
+            return []
+
         # Strip a trailing period for cleaner objects.
-        clean = sentence.strip().rstrip(".!?")
+        clean = stripped.rstrip(".!?")
         tokens = clean.split()
         if len(tokens) < 2:
             return []
 
-        subj_text, rest = self._take_subject(tokens)
+        head0 = tokens[0].rstrip(",;:").lower()
+        if head0 in _NON_SUBJECT:
+            return []
+
+        if tokens[0].lower() in {"the", "a", "an"} and len(tokens) >= 3:
+            rest_after_art = tokens[1:]
+            if rest_after_art[0][:1].isupper():
+                subj_text, rest = self._take_subject(rest_after_art)
+                if subj_text is None:
+                    subj_text = rest_after_art[0].rstrip(",")
+                    rest = rest_after_art[1:]
+            else:
+                subj_text = rest_after_art[0].rstrip(",")
+                rest = rest_after_art[1:]
+        else:
+            subj_text, rest = self._take_subject(tokens)
+
         if subj_text is None or not rest:
             return []
 
-        # If the captured subject is a single sentence-initial capitalized
-        # word (not a pronoun) followed by up to a few non-clause words before
-        # a copula, fold them into the subject. This handles "Civic engagement
-        # is a value choice." without swallowing active verbs or relative
-        # clauses ("Albert Einstein discovered relativity which was ...").
-        if rest and len(subj_text.split()) == 1 and subj_text.lower() not in {"he", "she", "they", "it"}:
+        # If the captured subject is a single word (not a pronoun) followed by up
+        # to a few non-clause words before a copula, fold them into the subject.
+        # This handles "Civic engagement is a value choice." without swallowing
+        # active verbs or relative clauses ("Albert Einstein discovered ...").
+        if (
+            rest
+            and len(subj_text.split()) == 1
+            and subj_text.lower() not in {"he", "she", "they", "it"}
+        ):
             cop_idx = next((i for i, t in enumerate(rest) if t.lower() in _COPULA), None)
             if cop_idx is not None and 0 < cop_idx <= 3:
                 extra = rest[:cop_idx]
@@ -126,7 +190,7 @@ class SVOExtractor:
                     subj_text = (subj_text + " " + " ".join(extra)).strip()
                     rest = rest[cop_idx:]
 
-        if subj_text.lower() in _NON_SUBJECT:
+        if subj_text.split()[0].rstrip(",").lower() in _NON_SUBJECT:
             return []
 
         subjects = self._split_conjoined_subjects(subj_text)
@@ -154,7 +218,7 @@ class SVOExtractor:
                 "predicate": predicate,
                 "object": object_text,
                 "object_type": self._coarse_type(object_text),
-                "text": sentence.strip(),
+                "text": stripped,
             })
         return relations
 
@@ -225,12 +289,9 @@ class SVOExtractor:
             low = tok.lower()
             if low in _COPULA:
                 return i
-            # A lowercase alphabetic word that isn't a preposition/conjunction
+            # A lowercase alphabetic word that isn't a preposition/determiner/conjunction
             # is treated as the main verb.
-            if low.isalpha() and low not in {
-                "and", "or", "but", "of", "in", "on", "at", "to", "for",
-                "with", "by", "from", "as", "that", "which", "who",
-            }:
+            if low.isalpha() and low not in _NON_VERBS:
                 return i
         return None
 

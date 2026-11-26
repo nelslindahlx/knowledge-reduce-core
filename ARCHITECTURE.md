@@ -123,7 +123,12 @@ graph TD
 │   ├── github_pr_helper.py     # Maker/Checker GitHub PR creation & audit helper
 │   └── hooks/
 │       └── pre_pr_safety_gate.py # Antigravity PreToolUse branch & meta-test gate
-└── tests/                      # Stratified test suite (57 test files incl. tests/meta/)
+├── benchmarks/                 # Offline golden regression benchmarks & locked baselines
+│   ├── _in_memory_store.py     # Pure-Python BaseGraphStore & chat JSONL compiler
+│   ├── civichonors_book_benchmark.py      # Civic Honors book drop/catalog/GraphRAG benchmark
+│   ├── multisource_factory_benchmark.py   # Multi-source delta, conflict & RAG benchmark
+│   └── datasets/civichonors_book/         # Gold annotations & locked baseline_v0_4_0.json
+└── tests/                      # Stratified test suite (59 test files incl. tests/golden/ and tests/meta/)
 ```
 
 ---

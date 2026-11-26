@@ -35,6 +35,12 @@ _SUBJECT_STOPWORDS = {
     "during", "between", "among", "across", "toward",
     # bare verbs / chapter scaffolding that show up as openers
     "chapter", "section", "figure", "table",
+    # interrogatives / auxiliaries / quantifiers
+    "what", "why", "how", "who", "whom", "whose", "which", "where",
+    "is", "are", "was", "were", "do", "does", "did", "can", "could",
+    "would", "should", "will", "shall", "may", "might", "must",
+    "many", "most", "no", "not", "few", "several", "such", "only", "even",
+    "much", "more", "less", "none", "nothing", "nobody",
 }
 
 

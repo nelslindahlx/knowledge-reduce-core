@@ -205,6 +205,16 @@ During the `v0.4.0` release bump (`PR #7`), `pyproject.toml` was updated from `0
 * After bumping `version` in `pyproject.toml`, always remove stale root `*.egg-info/` directories (`make clean`) AND refresh editable metadata offline (`uv pip install --no-deps --no-build-isolation -e .`) so `importlib.metadata.version("knowledgereduce")` resolves the new version rather than cached `PKG-INFO`.
 * Set `--cov-fail-under` according to the minimal CI extra set (`75%` safely covers minimal `.[dev,hermes]` at `~78%` while full local environments run at `86%+`) and keep every governance parity file (`Makefile`, `AGENTS.md`, `.agents/AGENTS.md`, `CONTRIBUTING.md`, `.github/pull_request_template.md`, `.github/workflows/ci.yml`, `tests/meta/test_governance_and_invariants.py`) synchronized.
 
+---
+
+## 19. Offline Golden Regression Benchmarks & Extraction Noise Discovery
+
+### Context
+Prior to `PR #8`, `data/gold_set.json` evaluated 15 hand-labeled sentences (`F1 0.857` with `recall >= 0.5`), `data/gold_biochem.json` had no direct test runner, and `data/civic_honors_book.txt` (`139,595` chars) had zero automated pipeline verification. Running a full-book golden benchmark adapted from sibling K-Reduce (`benchmarks/civichonors_book_benchmark.py` and `benchmarks/multisource_factory_benchmark.py`) immediately exposed real extraction flaws: title-case headings (`"Breaking Down"`), question sentences (`?`), single-letter author initials (`"Dr. H. George Frederickson"`), leading-article subjects (`"The university..."`), and discourse/interrogative openers (`"However"`, `"What"`, `"Why"`, `"Many"`).
+
+### Lesson Learned
+* End-to-end offline golden benchmarks (`make golden`, `tests/golden/test_civichonors_book_golden.py`, `tests/golden/test_multisource_factory_golden.py`) built on a pure-Python `BaseGraphStore` plus optional `KuzuStore` parity checks catch corpus-scale noise and conflict-reconciliation bugs that small unit fixtures miss — raising `data/gold_set.json` from `F1 0.857` to `1.000` while proving `100%` reference-fact retention, `Hit@1 = 1.0`, and zero heading/question noise across the entire Civic Honors book.
+
 
 
 

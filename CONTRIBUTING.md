@@ -38,10 +38,11 @@ Automatic GitHub Actions triggers (`push`, `pull_request`) are disabled (`workfl
 ```bash
 make canary      # <10s: import warning gate + tests/meta/ invariants & governance checks
 make skill       # Hermes skill smoke test + tests/test_skill.py manifest validation
-make lint        # ruff check across code/tests/scripts + strict ruff check/format on governance/meta modules
+make lint        # ruff check across code/tests/scripts/benchmarks + strict ruff check/format on governance/golden/meta modules
+make golden      # offline Civic Honors book and multi-source factory golden regression benchmarks
 make smoke-pr    # canary + skill + lint + Stage 1 & Stage 2 tests
 make test        # full pytest suite with --cov-fail-under=75
-make local-ci    # complete local CI gate (canary + skill + lint + test)
+make local-ci    # complete local CI gate (canary + skill + lint + golden + test)
 make audit-prs   # verify zero open PRs and zero lingering remote branches
 ```
 

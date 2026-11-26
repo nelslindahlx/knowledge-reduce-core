@@ -309,3 +309,18 @@ def test_coverage_gate_parity() -> None:
         assert "--cov-fail-under=75" in text, f"Expected 75% coverage gate in {path.name}"
         assert "--cov-fail-under=58" not in text, f"Stale 58% coverage gate in {path.name}"
         assert "--cov-fail-under=60" not in text, f"Stale 60% coverage gate in {path.name}"
+
+
+def test_golden_benchmark_artifacts_and_makefile_target() -> None:
+    required_paths = (
+        REPO_ROOT / "benchmarks" / "civichonors_book_benchmark.py",
+        REPO_ROOT / "benchmarks" / "multisource_factory_benchmark.py",
+        REPO_ROOT / "benchmarks" / "datasets" / "civichonors_book" / "gold_annotations.json",
+        REPO_ROOT / "benchmarks" / "datasets" / "civichonors_book" / "baseline_v0_4_0.json",
+        REPO_ROOT / "tests" / "golden" / "test_civichonors_book_golden.py",
+        REPO_ROOT / "tests" / "golden" / "test_multisource_factory_golden.py",
+    )
+    for path in required_paths:
+        assert path.is_file(), f"Missing golden benchmark artifact: {path}"
+    makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "golden:" in makefile_text, "Makefile must define a 'golden:' target"

@@ -10,9 +10,10 @@ This file defines repository rules and conventions for **KnowledgeReduce Core** 
 - **Stratified Local CI Commands (`Makefile`)**:
   - **Canary Meta Gate (`< 10s`)**: `make canary` (`uv run --no-sync python -W error::Warning -c "import knowledge_graph_pkg"` + `pytest tests/meta/ -q`).
   - **Hermes Skill Gate**: `make skill` (`python scripts/smoke_skill.py` + `pytest tests/test_skill.py -q`).
-  - **Lint & Format**: `make lint` (`ruff check knowledge_graph_pkg tests scripts` plus strict `ruff check` and `ruff format --check` on governance scripts and `tests/meta`).
+  - **Lint & Format**: `make lint` (`ruff check knowledge_graph_pkg tests scripts benchmarks` plus strict `ruff check` and `ruff format --check` on governance scripts, `tests/meta`, `benchmarks`, and `tests/golden`).
+  - **Golden Regression Gate**: `make golden` (offline `civichonors_book_benchmark.py` and `multisource_factory_benchmark.py` with `--strict-regression`) and `tests/golden/`.
   - **PR Smoke Tier**: `make smoke-pr` (`canary` + `skill` + `lint` + Stage 1 & Stage 2 via `scripts/run_suite.py`).
-  - **Full Local CI (Mandatory Before PR Merge)**: `make local-ci` (`canary`, `skill`, `lint`, and `pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=75`).
+  - **Full Local CI (Mandatory Before PR Merge)**: `make local-ci` (`canary`, `skill`, `lint`, `golden`, and `pytest --cov=knowledge_graph_pkg --cov-report=term-missing --cov-fail-under=75`).
 
 ---
 

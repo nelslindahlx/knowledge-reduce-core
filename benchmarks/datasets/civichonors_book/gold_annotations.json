@@ -1,0 +1,182 @@
+{
+  "corpus_id": "civichonors-book-v1",
+  "source_path": "data/civic_honors_book.txt",
+  "source_url": "https://www.civichonors.com/p/the-book",
+  "content_sha256": "1b6e834b379bf12c657f61f48043d085ee4f068baab6f429b68b38d01695e4b3",
+  "expected_entities": [
+    {"canonical_name": "Nels Lindahl", "expected_type": "PERSON", "expected_aliases": ["Dr. Nels Lindahl"]},
+    {"canonical_name": "H. George Frederickson", "expected_type": "PERSON", "expected_aliases": ["Dr. H. George Frederickson"]},
+    {"canonical_name": "Raymond Davis", "expected_type": "PERSON", "expected_aliases": ["Dr. Raymond Davis"]},
+    {"canonical_name": "Thomas Longoria", "expected_type": "PERSON", "expected_aliases": ["Dr. Thomas Longoria"]},
+    {"canonical_name": "Charles J. Carlsen", "expected_type": "PERSON", "expected_aliases": ["Dr. Charles J. Carlsen"]},
+    {"canonical_name": "Susan Lindahl", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "Deborah DeGrate", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "Carrie Donham", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "Chris Engle", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "Jennifer Pittman-Leeper", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "Robert Putnam", "expected_type": "PERSON", "expected_aliases": []},
+    {"canonical_name": "University of Kansas", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Johnson County Community College", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Public Administration Department", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Civic Honors Program", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Journal for Civic Commitment", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Harvard University Press", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Oxford University Press", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Cambridge University Press", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "University of California Press", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Brookings Institution Press", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Russell Sage Foundation", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Prentice Hall", "expected_type": "ORG", "expected_aliases": []},
+    {"canonical_name": "Denver", "expected_type": "GPE", "expected_aliases": []},
+    {"canonical_name": "Colorado", "expected_type": "GPE", "expected_aliases": []},
+    {"canonical_name": "New York", "expected_type": "GPE", "expected_aliases": []},
+    {"canonical_name": "London", "expected_type": "GPE", "expected_aliases": []},
+    {"canonical_name": "San Francisco", "expected_type": "GPE", "expected_aliases": []},
+    {"canonical_name": "Civic Honors", "expected_type": "CONCEPT", "expected_aliases": []},
+    {"canonical_name": "Concepts of Civil Society", "expected_type": "CONCEPT", "expected_aliases": []},
+    {"canonical_name": "Bowling Alone", "expected_type": "CONCEPT", "expected_aliases": []},
+    {"canonical_name": "2002", "expected_type": "DATE", "expected_aliases": []},
+    {"canonical_name": "2004", "expected_type": "DATE", "expected_aliases": []},
+    {"canonical_name": "2005", "expected_type": "DATE", "expected_aliases": []},
+    {"canonical_name": "2006", "expected_type": "DATE", "expected_aliases": []},
+    {"canonical_name": "June 14, 2020", "expected_type": "DATE", "expected_aliases": []}
+  ],
+  "known_heading_noise_entities": [
+    "Breaking Down",
+    "Building Connections",
+    "Never Fear Collaboration",
+    "Positive Message",
+    "Strong Leadership",
+    "Thinking About What",
+    "Measuring Change",
+    "Story Behind Graduation With",
+    "Advantage of Having Long-Term Vision",
+    "Future of E-Community",
+    "Thinking About Technology",
+    "Individual Change"
+  ],
+  "reference_facts": [
+    {
+      "fact_id": "dream_2002",
+      "description": "Origin year while graduation with civic honors remained a dream until late 2002.",
+      "required_substrings": ["graduation with civic honors", "2002"]
+    },
+    {
+      "fact_id": "civic_engagement_def",
+      "description": "Core definition linking civic engagement with participation in civil society.",
+      "required_substrings": ["civic engagement", "civil society"]
+    },
+    {
+      "fact_id": "volunteerism_ethic",
+      "description": "Civic participation spreading the ethic of volunteerism.",
+      "required_substrings": ["civic participation", "volunteerism"]
+    },
+    {
+      "fact_id": "collaboration_concept",
+      "description": "Collaboration as key to the future of the civic honors program concept.",
+      "required_substrings": ["collaboration", "civic honors program concept"]
+    },
+    {
+      "fact_id": "higher_education_key",
+      "description": "Role of higher education in moving forward as a society.",
+      "required_substrings": ["higher education", "moving forward as a society"]
+    },
+    {
+      "fact_id": "universities_center_stage",
+      "description": "Unique opportunity for universities to take center stage in the community.",
+      "required_substrings": ["universities", "center stage in the community"]
+    },
+    {
+      "fact_id": "vision_component",
+      "description": "Vision as a necessary component of being a leader in the community.",
+      "required_substrings": ["vision", "leader in the community"]
+    },
+    {
+      "fact_id": "replication_success",
+      "description": "Replication identified as imperative for success.",
+      "required_substrings": ["replication", "imperative for success"]
+    },
+    {
+      "fact_id": "technology_efficiency",
+      "description": "Technology increasing the efficiency of programs bringing people together.",
+      "required_substrings": ["technology", "efficiency", "bring people together"]
+    },
+    {
+      "fact_id": "ecommunity_networks",
+      "description": "Networks within e-community developing integration of individuals and ideas.",
+      "required_substrings": ["e-community", "integration of individuals and ideas"]
+    },
+    {
+      "fact_id": "jccc_program_ref",
+      "description": "Reference to the Civic Honors Program at Johnson County Community College.",
+      "required_substrings": ["civic", "johnson county community college"]
+    },
+    {
+      "fact_id": "journal_commitment_ref",
+      "description": "Citation to Journal for Civic Commitment volume 4.",
+      "required_substrings": ["journal", "commitment, 4, 1-9"]
+    }
+  ],
+  "retrieval_queries": [
+    {
+      "query_id": "dream_year",
+      "category": "history",
+      "query": "Until when was graduation with civic honors only a dream?",
+      "required_evidence_substrings": ["dream", "2002"]
+    },
+    {
+      "query_id": "civic_engagement",
+      "category": "definition",
+      "query": "What is civic engagement encouraging in civil society?",
+      "required_evidence_substrings": ["civic engagement", "civil society"]
+    },
+    {
+      "query_id": "volunteerism",
+      "category": "definition",
+      "query": "How can active civic participation involve volunteerism?",
+      "required_evidence_substrings": ["volunteerism"]
+    },
+    {
+      "query_id": "collaboration",
+      "category": "program",
+      "query": "What is key to the future of the civic honors program concept?",
+      "required_evidence_substrings": ["collaboration", "civic honors program concept"]
+    },
+    {
+      "query_id": "higher_ed",
+      "category": "education",
+      "query": "What is higher education key to in moving forward as a society?",
+      "required_evidence_substrings": ["higher education", "society"]
+    },
+    {
+      "query_id": "universities",
+      "category": "education",
+      "query": "Where do universities have a unique opportunity to take center stage?",
+      "required_evidence_substrings": ["universities", "center stage"]
+    },
+    {
+      "query_id": "vision_leadership",
+      "category": "leadership",
+      "query": "What is vision a necessary component of in the community?",
+      "required_evidence_substrings": ["vision", "leader in the community"]
+    },
+    {
+      "query_id": "technology",
+      "category": "technology",
+      "query": "How can technology increase the efficiency of bringing people together?",
+      "required_evidence_substrings": ["technology", "efficiency"]
+    },
+    {
+      "query_id": "ecommunity",
+      "category": "technology",
+      "query": "How should networks within e-community develop?",
+      "required_evidence_substrings": ["e-community", "integration of individuals and ideas"]
+    },
+    {
+      "query_id": "replication",
+      "category": "strategy",
+      "query": "Why is replication important for success?",
+      "required_evidence_substrings": ["replication", "imperative for success"]
+    }
+  ]
+}

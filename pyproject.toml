@@ -76,7 +76,7 @@ knowledgereduce = "knowledge_graph_pkg.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["knowledge_graph_pkg*"]
-exclude = ["data*", "docs*", "examples*", "scripts*", "tests*"]
+exclude = ["benchmarks*", "data*", "docs*", "examples*", "scripts*", "tests*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

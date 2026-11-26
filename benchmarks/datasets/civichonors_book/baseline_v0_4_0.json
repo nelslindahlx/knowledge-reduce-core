@@ -1,0 +1,69 @@
+{
+  "baseline_version": "0.4.0",
+  "corpus_id": "civichonors-book-v1",
+  "source_path": "data/civic_honors_book.txt",
+  "metrics": {
+    "corpus_id": "civichonors-book-v1",
+    "source_chars": 139595,
+    "source_words": 21765,
+    "content_sha256": "1b6e834b379bf12c657f61f48043d085ee4f068baab6f429b68b38d01695e4b3",
+    "raw_facts": 804,
+    "distilled_facts": 77,
+    "compression_ratio": 0.9042,
+    "idempotent_skipped": 1,
+    "catalog_indexed": 77,
+    "valid_chat_records": 77,
+    "valid_chat_ratio": 1.0,
+    "entity_mentions": 1419,
+    "core_entity_name_recall": 0.4444,
+    "heading_noise_fp_count": 0,
+    "question_fact_count": 0,
+    "core_fact_retention": 1.0,
+    "graph_nodes": 77,
+    "graph_edges": 1,
+    "ontology_categories": 139,
+    "retrieval_hit_at_1": 1.0,
+    "retrieval_hit_at_3": 1.0,
+    "retrieval_hit_at_5": 1.0,
+    "retrieval_mrr_at_5": 1.0,
+    "query_ranks": {
+      "dream_year": 1,
+      "civic_engagement": 1,
+      "volunteerism": 1,
+      "collaboration": 1,
+      "higher_ed": 1,
+      "universities": 1,
+      "vision_leadership": 1,
+      "technology": 1,
+      "ecommunity": 1,
+      "replication": 1
+    },
+    "missing_reference_facts": [],
+    "drop_seconds": 0.1042,
+    "catalog_seconds": 0.0041,
+    "export_seconds": 0.0031,
+    "graph_seconds": 0.0156,
+    "query_cold_seconds": 0.0194,
+    "query_warm_avg_seconds": 0.0183,
+    "total_seconds": 0.1465,
+    "peak_traced_mib": 3.25
+  },
+  "regression_floors": {
+    "min": {
+      "distilled_facts": 60,
+      "idempotent_skipped": 1,
+      "valid_chat_ratio": 1.0,
+      "core_entity_name_recall": 0.4,
+      "core_fact_retention": 0.95,
+      "ontology_categories": 1,
+      "retrieval_hit_at_1": 0.9,
+      "retrieval_hit_at_5": 0.9,
+      "retrieval_mrr_at_5": 0.9
+    },
+    "max": {
+      "heading_noise_fp_count": 0,
+      "question_fact_count": 0,
+      "total_seconds": 8.0
+    }
+  }
+}
